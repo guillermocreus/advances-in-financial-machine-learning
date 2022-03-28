@@ -1,0 +1,33 @@
+\BOOKMARK [1][-]{section.1}{Introduction}{}% 1
+\BOOKMARK [1][-]{section.2}{Motivation}{}% 2
+\BOOKMARK [1][-]{section.3}{Toy Project}{}% 3
+\BOOKMARK [2][-]{subsection.3.1}{Data}{section.3}% 4
+\BOOKMARK [2][-]{subsection.3.2}{Models}{section.3}% 5
+\BOOKMARK [2][-]{subsection.3.3}{Results}{section.3}% 6
+\BOOKMARK [3][-]{subsubsection.3.3.1}{Example}{subsection.3.3}% 7
+\BOOKMARK [3][-]{subsubsection.3.3.2}{Precision}{subsection.3.3}% 8
+\BOOKMARK [3][-]{subsubsection.3.3.3}{Recall}{subsection.3.3}% 9
+\BOOKMARK [3][-]{subsubsection.3.3.4}{F1-Score}{subsection.3.3}% 10
+\BOOKMARK [2][-]{subsection.3.4}{Conclusions}{section.3}% 11
+\BOOKMARK [1][-]{section.4}{Data}{}% 12
+\BOOKMARK [2][-]{subsection.4.1}{Removal of outliers}{section.4}% 13
+\BOOKMARK [2][-]{subsection.4.2}{Division of Data}{section.4}% 14
+\BOOKMARK [1][-]{section.5}{Labeling \(Triple barrier\)}{}% 15
+\BOOKMARK [2][-]{subsection.5.1}{Adaptation when the side is known}{section.5}% 16
+\BOOKMARK [1][-]{section.6}{Models}{}% 17
+\BOOKMARK [1][-]{section.7}{Binary classification problem}{}% 18
+\BOOKMARK [1][-]{section.8}{Primary Model}{}% 19
+\BOOKMARK [2][-]{subsection.8.1}{MA based Primary Model}{section.8}% 20
+\BOOKMARK [2][-]{subsection.8.2}{ML based Primary Model}{section.8}% 21
+\BOOKMARK [1][-]{section.9}{Secondary Model}{}% 22
+\BOOKMARK [2][-]{subsection.9.1}{MA based Secondary Model}{section.9}% 23
+\BOOKMARK [2][-]{subsection.9.2}{ML based Secondary Model}{section.9}% 24
+\BOOKMARK [1][-]{section.10}{Hyper-parameter tuning via cross-validation}{}% 25
+\BOOKMARK [2][-]{subsection.10.1}{Cross-Validation MA based Models}{section.10}% 26
+\BOOKMARK [2][-]{subsection.10.2}{Cross-Validation ML based Models}{section.10}% 27
+\BOOKMARK [1][-]{section.11}{Results}{}% 28
+\BOOKMARK [2][-]{subsection.11.1}{MA based Models}{section.11}% 29
+\BOOKMARK [2][-]{subsection.11.2}{ML based Models}{section.11}% 30
+\BOOKMARK [1][-]{section.12}{Coin flip correction}{}% 31
+\BOOKMARK [2][-]{subsection.12.1}{Results}{section.12}% 32
+\BOOKMARK [1][-]{section.13}{Conclusions}{}% 33

@@ -1,0 +1,277 @@
+---
+title: "Gaussian Noise Meta-labeling"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+```{r echo=FALSE, results="hide"}
+library(caret)  # Wrapper for Random Forest
+library(rvest)  # Defines  %>%
+
+# _____ Neural Networks _____
+library(keras)
+library(tensorflow)
+# _______________
+
+library(ROCR)  # ROC plots
+library(ggplot2)
+library(data.table)  # Melting df
+
+setwd("~/Dropbox/HKUST/TFG/Chapter\ 1\ -\ Metalabeling/Code/gaussianNoise")
+
+source("utils/utilities.R")
+allResults <- list()
+```
+
+```{r}
+# _____ Hyper-parameters _____
+
+nObs <- 1000  # It must be even
+nSigma <- 10
+
+sigmas <- seq(from = 1e-4, to = 1, length.out = nSigma)
+indexSigma <- 10
+
+# _______________
+for (indexSigma in 1:nSigma) {
+  sigma <- sigmas[indexSigma]
+  
+  set.seed(1998)
+  labelPosition <- sample(1:nObs, nObs/2)
+  
+  y <- rep(0, nObs)
+  y[labelPosition] <- 1
+  
+  set.seed(1998)
+  x <- y + rnorm(length(y), mean = 0, sd = sigma)
+  dd <- data.frame("observation" = 1:nObs, 
+                   "Feature" = x, 
+                   "Label" = as.character(y))
+  
+  print(ggplot(dd, aes(x = observation, y = Feature, col = Label)) +
+          geom_point() + xlab(element_blank()) + 
+          ggtitle(paste("Features M1 - Sigma = ", sigma)))
+  
+  set.seed(20)  # No poner 1998!
+  inSampleInd <- sample(length(x), ceiling(0.8*nObs))
+  trnInd <- sample(length(inSampleInd), ceiling(0.8*length(inSampleInd)))
+  
+  xinSample <- x[inSampleInd]
+  yinSample <- y[inSampleInd]
+  
+  xTrn <- xinSample[trnInd]
+  yTrn <- yinSample[trnInd]
+  
+  xVal <- xinSample[-trnInd]
+  yVal <- yinSample[-trnInd]
+  
+  xTst <- x[-inSampleInd]
+  yTst <- y[-inSampleInd]
+  
+  set.seed(1998)
+  primaryModel <- keras_model_sequential() %>%
+    layer_flatten(input_shape = 1) %>%
+    layer_dense(units = 20) %>%
+    layer_activation_leaky_relu() %>%
+    layer_dense(units = 1, activation = "sigmoid")
+  
+  # Input format:
+  # x <-> Matrix
+  # y <-> vector
+  
+  primaryModel %>%
+    compile(
+      optimizer = "rmsprop",
+      loss = "binary_crossentropy",
+      metrics = c("Recall", "Precision")
+    )
+  
+  history <- primaryModel %>% fit(
+    x = xTrn, 
+    y = yTrn,
+    epochs = 50,
+    batch_size = 256,
+    validation_data = list(xVal, yVal)
+    # validation_split = 0.2
+  )
+    
+  yHatTrn <- primaryModel %>% predict(xTrn)
+  yHatVal <- primaryModel %>% predict(xVal)
+  yHatTst <- primaryModel %>% predict(xTst)
+  
+  # _____ Choosing a threshold _____
+  df <- data.frame("predictions" = yHatTrn,
+                   "labels" = yTrn)
+  pred <- prediction(df$predictions, df$labels)
+  perf <- performance(pred, "tpr", "fpr")
+  par(pty = "s")
+  plot(
+    perf,
+    col = "grey40",
+    lwd = 3,
+    main = paste("ROC M1 (Train) - Sigma = ", sigma)
+  )
+  # Line with a: intercept, b: slope, lty = line type
+  
+  abline(a = 0, b = 1, lty = "dotted")  
+  # _______________
+  
+  thresholds <- seq(from = 0, to = 1, length.out = 11)
+  pointsROC <- matrix(rep(NA, 2*length(thresholds)),
+                      ncol = 2, nrow = length(thresholds))
+  
+  indGood <- NA
+  for (i in length(thresholds):1) {
+    th <- thresholds[i]
+    
+    TP <- sum(yHatTrn > th & yTrn == 1)
+    FN <- sum(yHatTrn <= th & yTrn == 1)
+    FP <- sum(yHatTrn > th & yTrn == 0)
+    TN <- sum(yHatTrn <= th & yTrn == 0)
+    
+    TPR <- TP/(TP + FN)
+    FPR <- FP/(FP + TN)
+    
+    if (TPR > 0.8 & is.na(indGood)) indGood <- i
+    pointsROC[i, ] <- c(FPR, TPR)
+    
+    points(FPR, TPR, pch = 19, col = "blue")
+  }
+  
+  # _____ Manual adjustment _____
+  th <- thresholds[indGood]
+  points(pointsROC[indGood, 1], pointsROC[indGood, 2], pch = 19, col = "red")
+  
+  yHatTrn <- yHatTrn > th
+  yHatVal <- yHatVal > th
+  yHatTst <- yHatTst > th
+  
+  # prediction_for_table <- predict(rf_classifier,validation1[,-5])
+  # table(observed=validation1[,5],predicted=prediction_for_table)
+  # _______________
+  
+  # _____ Metrics _____
+  # _____ Train _____
+  callMetrics <- getMetrics(actual = yTrn, predicted = yHatTrn)
+  
+  precisionM1Trn <- callMetrics$precision
+  recallM1Trn <- callMetrics$recall
+  f1ScoreM1Trn <- callMetrics$f1Score
+  # _______________
+  
+  # _____ Validation _____
+  callMetrics <- getMetrics(actual = yVal, predicted = yHatVal)
+  
+  precisionM1Val <- callMetrics$precision
+  recallM1Val <- callMetrics$recall
+  f1ScoreM1Val <- callMetrics$f1Score
+  # _______________
+  
+  # _____ Test _____
+  callMetrics <- getMetrics(actual = yTst, predicted = yHatTst)
+  
+  precisionM1Tst <- callMetrics$precision
+  recallM1Tst <- callMetrics$recall
+  f1ScoreM1Tst <- callMetrics$f1Score
+  # _______________
+  
+  # _____ Secondary Model _____
+  
+  xM2Trn <- cbind(yHatTrn, xTrn)
+  yM2Trn <- (yHatTrn == 1) & (yTrn == 1)
+  
+  xM2Val <- cbind(yHatVal, xVal)
+  yM2Val <- (yHatVal == 1) & (yVal == 1)
+  
+  xM2Tst <- cbind(yHatTst, xTst)
+  yM2Tst <- (yHatTst == 1) & (yTst == 1)
+  
+  set.seed(1998)
+  secondaryModel <- keras_model_sequential() %>%
+    layer_flatten(input_shape = ncol(xM2Trn)) %>%
+    layer_dense(units = 25) %>%
+    layer_activation_leaky_relu() %>%
+    layer_dense(units = 1, activation = "sigmoid")
+  
+  # Input format:
+  # x <-> Matrix
+  # y <-> vector
+  
+  secondaryModel %>% compile(
+    optimizer = "rmsprop",
+    loss = "binary_crossentropy",
+    metrics = c("Recall", "Precision")
+  )
+  
+  history <- secondaryModel %>% fit(
+    x = xM2Trn, 
+    y = yM2Trn,
+    epochs = 40,
+    batch_size = 256,
+    validation_data = list(xM2Val, yM2Val)
+  )
+  
+  yHatM2Trn <- secondaryModel %>% predict_classes(xM2Trn)
+  yHatM2Val <- secondaryModel %>% predict_classes(xM2Val)
+  yHatM2Tst <- secondaryModel %>% predict_classes(xM2Tst)
+  
+  yHatMMTrn <- (yHatTrn == 1) & (yHatM2Trn == 1)
+  yHatMMVal <- (yHatVal == 1) & (yHatM2Val == 1)
+  yHatMMTst <- (yHatTst == 1) & (yHatM2Tst == 1)
+  
+  # _____ Train _____
+  callMetrics <- getMetrics(actual = yTrn, predicted = yHatMMTrn)
+  
+  precisionMMTrn <- callMetrics$precision
+  recallMMTrn <- callMetrics$recall
+  f1ScoreMMTrn <- callMetrics$f1Score
+  
+  resultsTrn <- matrix(c(precisionM1Trn, precisionMMTrn,
+                         recallM1Trn, recallMMTrn,
+                         f1ScoreM1Trn, f1ScoreMMTrn), 
+                       nrow = 3, ncol = 2, byrow = TRUE)
+  rownames(resultsTrn) <- c("Precision", "Recall", "F1-Score")
+  colnames(resultsTrn) <- c("Primary Model", "Meta Model")
+  # _______________
+  
+  # _____ Validation _____
+  callMetrics <- getMetrics(actual = yVal, predicted = yHatMMVal)
+  
+  precisionMMVal <- callMetrics$precision
+  recallMMVal <- callMetrics$recall
+  f1ScoreMMVal <- callMetrics$f1Score
+  
+  resultsVal <- matrix(c(precisionM1Val, precisionMMVal,
+                         recallM1Val, recallMMVal,
+                         f1ScoreM1Val, f1ScoreMMVal), 
+                       nrow = 3, ncol = 2, byrow = TRUE)
+  rownames(resultsVal) <- c("Precision", "Recall", "F1-Score")
+  colnames(resultsVal) <- c("Primary Model", "Meta Model")
+  # _______________
+  
+  # _____ Test _____
+  callMetrics <- getMetrics(actual = yTst, predicted = yHatMMTst)
+  
+  precisionMMTst <- callMetrics$precision
+  recallMMTst <- callMetrics$recall
+  f1ScoreMMTst <- callMetrics$f1Score
+  
+  resultsTst <- matrix(c(precisionM1Tst, precisionMMTst,
+                         recallM1Tst, recallMMTst,
+                         f1ScoreM1Tst, f1ScoreMMTst), 
+                       nrow = 3, ncol = 2, byrow = TRUE)
+  rownames(resultsTst) <- c("Precision", "Recall", "F1-Score")
+  colnames(resultsTst) <- c("Primary Model", "Meta Model")
+  # _______________
+  
+  allResults[[indexSigma]] <- resultsTst
+  
+  print(resultsTrn)
+  print(resultsVal)
+  print(resultsTst)
+}
+```

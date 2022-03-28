@@ -1,0 +1,188 @@
+---
+title: "Volume Bars"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Test
+```{r}
+library(xts)  # Time series framework
+library(ggplot2)  # Fancy plots
+library(quantmod)  # Candle charts
+library(plotly)  # Fancy plots 2.0
+
+dd <- read.table("spy.txt", header = FALSE, sep = "", 
+                 dec = ".", stringsAsFactors = FALSE)
+dd <- data.frame(apply(dd[-1, ], 2, as.numeric))
+colnames(dd) <- c("Date", "Bin", "Volume", "Price")
+head(dd, 30)
+
+sum(dd$Volume[1:26])
+
+# Day: 2012-12-28
+# Volume: 123,486,362
+# Price: 132.75
+# Actual volume: 2,426,680,000
+# Actual price: 1,402.43
+
+sum(dd$Volume[27:52])
+
+# Day: 2012-12-31
+# Volume: 218,373,347
+# Price: 132.2830
+# Actual volume: 3,204,330,000
+# Actual price: 1,426.19
+
+expandDate <- function(s) {
+  # yyyymmdd
+  year <- substr(s, 1, 4)
+  month <- substr(s, 5, 6)
+  day <- substr(s, 7, 8)
+  
+  return(paste(year, month, day, sep = "-"))
+}
+
+dates <- unlist(lapply(dd$Date, expandDate))
+
+nBins <- 26
+startTrading <- 9.5
+endTrading <- 16
+
+dd <- apply(dd[, 3:4], 2, as.numeric)
+
+intra <- NULL
+
+for (k in 1:(nrow(dd)/nBins)) {
+  if (k == 1) {
+    intra <- startTrading*60*60 + seq(as.POSIXct(dates[(k - 1)*nBins + 1]), 
+                                      by = 60*60*(endTrading - startTrading)/(nBins - 1),
+                                      length.out = nBins)
+  } else if (k > 1) {
+    intra <- c(
+      intra, 
+      startTrading*60*60 + seq(as.POSIXct(dates[(k - 1)*nBins + 1]), 
+                               by = 60*60*(endTrading - startTrading)/(nBins - 1), 
+                               length.out = nBins)
+    )
+  }
+}
+
+dd <- xts(dd, order.by = intra)
+head(dd)
+
+meanVolume <- 0
+sum <- 0
+for (k in 1:(nrow(dd)/nBins)) {
+  sum <- sum + as.numeric(sum(dd$Volume[(k - 1)*nBins + 1:nBins]))
+}
+
+meanVolume <- sum/(nrow(dd)/nBins)
+# 97,586,165  (Average daily volume)
+
+getDailyVolumeBars <- function(prices, volume, delta = 3.7e6) {
+  # Delta = 3.7e6 - Standard value
+  # Objective: generate volume-sampled candles
+    # Time: time stamp of the last time bar
+    # Open
+    # High
+    # Low
+    # Close
+  
+  times <- index(prices)[1]
+  times <- times[-1]
+  bars <- c()
+  
+  volAcc <- 0
+  residualVol <- 0
+  lastReset <- 1
+  
+  for (k in 1:length(prices)) {
+    volAcc <- volAcc + as.numeric(volume[k])
+    while (volAcc > delta) {
+      # Open
+      open <- as.numeric(prices[lastReset])
+      
+      # High
+      high <- max(prices[lastReset:k])
+      
+      # Low
+      low <- min(prices[lastReset:k])
+      
+      # Close
+      close <- as.numeric(prices[k])
+      
+      bars <- rbind(bars, c(open, high, low, close))
+      times <- c(times, index(prices)[k])
+      
+      lastReset <- k
+      volAcc <- volAcc - delta
+    }
+  }
+
+  colnames(bars) <- c("Open", "High", "Low", "Close")
+  bars <- xts(bars, order.by = times)
+  return(bars)
+}
+
+MRes <- getDailyVolumeBars(prices = dd$Price, volume = dd$Volume)
+head(MRes)
+
+dfAux <- data.frame(Bars = 1:nrow(MRes), coredata(MRes))[1:30, ]
+fig <- dfAux %>% plot_ly(x = ~Bars, type = "candlestick",
+                         open = ~Open, close = ~Close,
+                         high = ~High, low = ~Low) 
+fig <- fig %>% layout(title = "Basic Candlestick Chart (Daily Volume / 26)")
+fig
+
+volRet <- na.omit(diff(log(MRes$Close)))
+
+MRes <- getDailyVolumeBars(prices = dd$Price, volume = dd$Volume, delta = 100e6)
+head(MRes)
+
+dfAux <- data.frame(Bars = 1:nrow(MRes), coredata(MRes))[1:50, ]
+fig <- dfAux %>% plot_ly(x = ~Bars, type = "candlestick",
+                         open = ~Open, close = ~Close,
+                         high = ~High, low = ~Low) 
+fig <- fig %>% layout(title = "Basic Candlestick Chart (Daily Volume)")
+fig
+
+volRet <- na.omit(diff(log(MRes$Close)))
+```
+
+# Volume bars
+```{r}
+plot(as.vector(volRet), col = "blue", lwd = 1, type = "l", 
+     xlab = "Volume bar", ylab = "returns", main = "Log-returns sampled by volume")
+
+h <- hist(volRet, breaks = 100, prob = TRUE, col = "lightgray", 
+          xlab = "return", main = "Histogram of log-returns sampled by volume")
+xfit <- seq(min(volRet), max(volRet), length = 100) 
+yfit <- dnorm(xfit, mean = mean(volRet), sd = sd(volRet))
+lines(xfit, yfit, col = "blue", lwd = 2)
+
+qqnorm(volRet, col = "blue", main = "QQ plot of log-returns sampled by volume")
+qqline(volRet, lwd = 2)
+```
+
+# Time bars
+```{r}
+GSPC <- getSymbols("^GSPC", from = index(dd)[1], to = tail(index(dd),), 
+                   auto.assign = FALSE)
+prices <- Cl(GSPC)
+R_daily <- diff(log(prices))[-1]
+plot(R_daily, col = "blue", lwd = 1, ylab = "log-return", 
+     main = "Returns sampled by time")
+
+h <- hist(as.vector(R_daily), breaks = 100, prob = TRUE, col = "lightgray", 
+          xlab = "return", main = "Histogram of log-returns sampled by time")
+xfit <- seq(min(R_daily), max(R_daily), length = 100) 
+yfit <- dnorm(xfit, mean = mean(R_daily), sd = sd(R_daily))
+lines(xfit, yfit, col = "blue", lwd = 2)
+
+qqnorm(R_daily, col = "blue", main = "QQ plot of log-returns sampled by time")
+qqline(R_daily, lwd = 2)
+
+```

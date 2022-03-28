@@ -1,0 +1,93 @@
+\begin{thebibliography}{10}
+
+\bibitem{beran2018mathematical}
+Jan Beran.
+\newblock {\em Mathematical foundations of time series analysis: a concise
+  introduction}.
+\newblock Springer, 2018.
+
+\bibitem{brockwell2016introduction}
+Peter~J Brockwell and Richard~A Davis.
+\newblock Introduction to time series and forecasting (3rd edn. ed.), 2016.
+
+\bibitem{clark1973subordinated}
+Peter~K Clark.
+\newblock A subordinated stochastic process model with finite variance for
+  speculative prices.
+\newblock {\em Econometrica: journal of the Econometric Society}, pages
+  135--155, 1973.
+
+\bibitem{stylizedFacts}
+R.~Cont.
+\newblock Empirical properties of asset returns: stylized facts and statistical
+  issues.
+\newblock {\em Quantitative Finance}, 1(2):223--236, 2001.
+
+\bibitem{AdvFML}
+Marcos~López de~Prado.
+\newblock {\em Advances in Financial Machine Learning}.
+\newblock Wiley, 2018.
+
+\bibitem{volumeClock}
+David Easley, Marcos M~L{\'o}pez de~Prado, and Maureen O’Hara.
+\newblock The volume clock: Insights into the high-frequency paradigm.
+\newblock {\em The Journal of Portfolio Management}, 39(1):19--29, 2012.
+
+\bibitem{gajda2020fractional}
+Janusz Gajda, Rafa{\l} Walasek, et~al.
+\newblock Fractional differentiation and its use in machine learning.
+\newblock Technical report, 2020.
+
+\bibitem{glabadanidis2015market}
+Paskalis Glabadanidis.
+\newblock Market timing with moving averages.
+\newblock {\em International Review of Finance}, 15(3):387--425, 2015.
+
+\bibitem{hosking1981fractional}
+JRM Hosking.
+\newblock Fractional differencing. biometrika 68 165--176.
+\newblock {\em Mathematical Reviews (MathSciNet): MR614953 Zentralblatt MATH},
+  464, 1981.
+
+\bibitem{imputeFin}
+J.~Liu and D.~P. Palomar.
+\newblock {\em {imputeFin: Imputation of Financial Time Series with Missing
+  Values}}, 2019.
+\newblock R package version 0.1.1.
+
+\bibitem{nielsen2005non}
+Heino~Bohn Nielsen.
+\newblock Non-stationary time series and unit root tests.
+\newblock {\em Unpublished Lecture Notes for Econometrics}, 2, 2005.
+
+\bibitem{acfDefinition}
+Mohamed~N. Nounou and Bhavik~R. Bakshi.
+\newblock {\em Chapter 5 - Multiscale Methods for Denoising and Compression},
+  volume~22 of {\em Data Handling in Science and Technology}.
+\newblock Elsevier, 2000.
+
+\bibitem{RStats}
+{R Core Team}.
+\newblock {\em R: A Language and Environment for Statistical Computing}.
+\newblock R Foundation for Statistical Computing, Vienna, Austria, 2019.
+
+\bibitem{sharpe1994sharpe}
+William~F Sharpe.
+\newblock The sharpe ratio, the journal of portfolio management.
+\newblock {\em Stanfold University, Fall}, 1994.
+
+\bibitem{metaLabelingSignalEfficacy}
+Ashutosh Singh and Jacques Joubert.
+\newblock Does meta labeling add to signal efficacy?, 2019.
+
+\bibitem{tseriesR}
+Adrian Trapletti and Kurt Hornik.
+\newblock {\em tseries: Time Series Analysis and Computational Finance}, 2019.
+\newblock R package version 0.10-47.
+
+\bibitem{zakamulin2018revisiting}
+Valeriy Zakamulin.
+\newblock Revisiting the profitability of market timing with moving averages.
+\newblock {\em International Review of Finance}, 18(2):317--327, 2018.
+
+\end{thebibliography}

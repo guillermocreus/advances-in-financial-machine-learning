@@ -1,0 +1,1844 @@
+\documentclass[a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{fullpage}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{hyperref}
+\usepackage{amssymb}
+\usepackage{outline} 
+\usepackage{pmgraph} 
+\usepackage[normalem]{ulem}
+\usepackage{graphicx}  % Lets you insertPDF images
+\usepackage{svg}  % Lets you insert svg images
+\usepackage{verbatim}
+\usepackage{afterpage}  % new pages
+
+% Notes
+\usepackage{todonotes}
+
+% Colored text
+\usepackage{xcolor}
+
+% Bold mathematical expressions
+\usepackage{fixmath}
+
+% Confusion Matrix
+\usepackage{array}
+\usepackage{multirow}
+\newcommand\MyBox[2]{
+  \fbox{\lower0.75cm
+    \vbox to 1.7cm{\vfil
+      \hbox to 1.7cm{\centering \hfil\parbox{0.5cm}{#1\\#2}\hfil}
+      \vfil}%
+  }%
+}
+
+% Lorem Ipsum
+\usepackage{lipsum}
+
+% Tables
+\usepackage{array}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}m{#1}}
+
+\newcommand{\homeCOne}{../../Chapter 1 - Metalabeling/Draft}
+\newcommand{\homeCTwo}{../../Chapter 2 - FracDiff/Draft}
+
+% ____ Bibliography ____
+\usepackage{natbib} %Bibliography.
+% \setcitestyle{numbers} %Cite as numbers or author-year.
+\bibliographystyle{plain} %Reference style.
+% ______________________
+
+\begin{document}
+\begin{titlepage}
+  \centering
+  \sc \LARGE
+
+  \rule{\textwidth}{1.6pt}\vspace*{-\baselineskip}\vspace*{2pt}
+  \rule{\textwidth}{0.4pt}
+  \vspace{-6mm}
+
+  \textbf{Draft - Chapter 1: Meta-labeling}\\[1.25ex]
+
+  \vspace{-3.5mm}
+  \rule{\textwidth}{0.4pt}\vspace*{-\baselineskip}\vspace*{3.2pt}
+  \rule{\textwidth}{1.6pt}
+  \vfill
+
+  \Large
+ \centering{Author: Guillermo Creus Botella} \\
+
+  \Large
+  Supervisor: Daniel P. Palomar
+  \vfill
+
+  \includegraphics[height=3.5cm]{img/hkust.png} \hspace{2.5cm}
+  \includegraphics[height=3.5cm]{img/upc.png}
+  \vspace{1cm}
+
+  \textit{The Hong Kong University of Science and Technology} (HKUST)\\
+  \vspace{1cm}
+  \textit{Polytechnic University of Catalonia - BarcelonaTech} (UPC)\\
+  \vfill
+
+\end{titlepage}
+
+\pagenumbering{arabic}
+\null
+\thispagestyle{empty}
+\addtocounter{page}{-3}
+\newpage
+
+\thispagestyle{empty}
+\tableofcontents
+
+\newpage\null\thispagestyle{empty}\newpage
+
+\section{Introduction}
+\label{sec:intro}
+Labeling is a well-known area in Machine Learning. It consists of 
+gathering a matrix $X$, known as features, whose rows are the 
+observations. Once a label $y$ is assigned to every observation $X_{i,
+\cdot}$ the main goal is to give a prediction $\hat{y}_i$. Whenever $y 
+\in I$ s.t. $|I| = 2$, the problem can be referred as a binary 
+classification, which is what this chapter will focus on. \\
+
+When it comes to Finance, labeling is not as straightforward as a 
+conventional case, i.e. predicting deterministic events; yes/no 
+traffic light in the picture, yes/no happy face, etc. Since one is 
+working with returns, one needs to determine whether a positive 
+(negative) outcome will happen (or not) in a determined time horizon. 
+\\
+
+The investment literature has tried to label observations using what 
+Marcos López de Prado (MLDP) \cite{AdvFML} defines as \textit{The 
+Fixed-Time Horizon Method}:
+
+\begin{equation}
+	y_i =
+    \begin{cases}
+      -1 & \text{if}\ r_{t_{i, 0}, t_{i, 0} + h} < \tau \\
+      \hfill 0 & \text{if}\ |r_{t_{i, 0}, t_{i, 0} + h}| \leq \tau \\
+      \hfill 1 & \text{if}\ r_{t_{i, 0}, t_{i, 0} + h} > \tau
+    \end{cases}
+\end{equation}
+
+Where $r_{t_{i, 0}, t_{i, 0} + h}$ is the linear return from time 
+$t_{i, 0}$ to $t_{i, 0} + h$ ($h$ is a time bar that can be days, 
+months, etc.).\\
+
+The problem with computing labels with a fixed threshold $\tau$ is 
+that volatility, $\sigma$, changes overtime and should be updated 
+regularly. Apart from that, restricting the model with a fixed $h$ is 
+not optimal at all since more flexible ways can be implemented.
+
+\section{Motivation}
+\label{sec:motiv}
+A portfolio of $N$ securities is defined by the weights, $\textbf{w} 
+\in \mathbb{R}^N$ it gives to every instrument. In order to minimize 
+the volatility, the Global Minimum Variance portfolio (\textbf{GMVP}) 
+is defined as:
+
+\begin{equation}
+	\begin{aligned}
+		\min_{w} \quad & w^{T} \Sigma w\\
+		\textrm{subject to} \quad & w \geq 0\\
+ 		 & \sum_{i = 1}^{N} w_i = 1    \\
+	\end{aligned}
+\end{equation}
+
+Where $\Sigma$ is the Covariance matrix of returns. If they are 
+linear, then they are defined as: $R_{t}^{i} = \frac{p_{t}^{i}}
+{p_{t-1}^{i}} - 1$.\\
+
+At this point, the portfolio budget is defined as $B$ and the amount 
+of money in asset $i$ is simply $B w_i$. Now, the portfolio returns 
+can be computed as:
+
+\begin{equation}
+	R_{t}^{P} = \frac{\sum_{i = 1}^{N} B w_i \cdot (1 + R_{t}^{i})}{B} - 1 =
+	\sum_{i = 1}^{N} (w_i + w_i \cdot R_{t}^{i}) - 1 =
+	\textbf{w} \cdot \textbf{$R_{t}$}
+\end{equation}
+
+Note that if $B w_i$ is the initial wealth of asset $i$ at time $t-1$, 
+then the final wealth is:
+
+\begin{equation}
+	B w_i \cdot \frac{p_{t}^{i}}{p_{t-1}^{i}} = B w_i \cdot (1 + R_{t}^{i})
+\end{equation}
+
+With all these concepts laid out, it is appropriate to talk about a 
+single time series. In other words, the portfolio indirectly 
+transforms a multivariate time series into a univariate one. 
+Consequently, from now on, only the portfolio time series will be 
+analyzed.\\ 
+
+As it can be seen in figure \ref{fig:GMVP_fall}, the falls in late 
+2018 and early 2020 are a huge setback as far as the final wealth is 
+concerned. Going back to section \ref{sec:intro}, the general idea is 
+to label these periods accordingly so that these drawdowns can be 
+predicted. \\
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.4]{"\homeCOne/img/GMVP_fall"}
+	\caption{GMVP portfolio prices}
+	\label{fig:GMVP_fall}
+\end{figure}
+
+\section{Toy Project}
+\label{sec:toyProject}
+Before applying Meta-labeling to financial data, an experiment has 
+been designed in order to explain how meta-labeling works with 
+synthetic data. Labels of side (long/short) of investments will be 
+created in a way that a designated set of features are responsible for 
+it. That is, features that have predicting power. The desired output 
+is to predict whether one should open a position or not, and the side 
+of it. This will be done in a sequential manner, with a primary and 
+secondary model.\\
+
+The primary Model will predict the side of the investment, and the 
+secondary model will decide if the primary model was right. To be 
+specific, the primary model will tell you to open a position (positive 
+in the binary classification context) with a given side, and the 
+secondary model will decide if it is a false or true positive.\\
+
+Meta-labeling should be used when one wants to achieve higher 
+F1-Scores (harmonic mean of precision and recall), because it lowers 
+the high recall from the primary model while getting a much higher 
+precision, thus boosting the F1-Score.\\
+
+As for the data division, the primary model will use a set of features 
+different than the secondary model ones. The latter will have some 
+designated features plus the prediction from the primary model That 
+way, with the new information and the prediction, the secondary model 
+will evaluate if the primary model made a correct decision.
+
+\subsection{Data}
+The data for this Toy Project will consist on 1000 observations of the 
+following data points:
+
+\begin{itemize}
+
+	\item \textbf{Features:} $\textbf{X}_{k,i} \sim 
+	N(\mu_i,\ \sigma^2)\ \text{for } i \in \{1,\ \ldots,\ 5\},\ 
+	k \in \{1,\ \ldots,\ 1000\}$
+	
+	\item $\omega_k = \textbf{sigmoid} \left( \alpha + 
+	\sum_{i = 1}^{5} \textbf{X}_{k,i} \cdot \beta_i + \epsilon_k 
+	\right)$ where $\epsilon_k \sim N(0,\ \sigma_{\epsilon}^2)$ 
+	and $\textbf{sigmoid}(z) = \frac{1}{1 + e^{-z}}$
+	
+	\vspace{.1cm}
+
+	Where: $\alpha = -0.5970$, \\
+	$\mathbold{\beta}=[-0.7862,\ 0.7695,\ -1.3740,\  0.6722,\ -0.4536]
+	$,\\
+	$\mathbold{\mu} = [-0.3110,\ -0.1157,\ 0.0316,\ 0.3210,\ -0.5933]
+	$,\\
+	$\sigma = 0.5$ and $\sigma_\epsilon \in 
+	\{0,\ 0.1,\ \ldots,\ 2.9,\ 3\}$\\
+	
+	
+	\item \textbf{Labels:} The side will be designated using 
+	$\omega_k$, which implies that all \textbf{5 features} have an 
+	effect on the correct side/investment.
+	\begin{equation*}
+		y_k^{\text{M1}} =
+	    \begin{cases}
+	      -1 & \text{if}\ \omega_k < 0.5 \\
+	      \hfill 1 & \text{otherwise} 
+	    \end{cases}
+	\end{equation*}
+\end{itemize}
+
+Note that, in order to avoid unbalanced labels, the following 
+constraint has been applied: 
+$0 = \alpha + \mathbold{\beta \cdot \mu}$. 
+That way, the expected value of $\alpha + \sum_{i = 1}^{5} 
+\textbf{X}_{k,i} \cdot \beta_i + \epsilon_k$ is 0 ($\textbf{sigmoid}
+(0) = 0.5$).\\
+
+By generating data this way, there are 5 explanatory variables that 
+are responsible for the position opening. Lastly, the labels of the 
+secondary model will be a 1 whenever the primary model gave a correct 
+prediction of the side and 0 otherwise. To be specific:
+
+\begin{equation*}
+	y_k^{\text{M2}} =
+    \begin{cases}
+      1 & \text{if}\ \hat{y}^{\text{M1}}_k = 
+      y^{\text{M1}}= -1\ \text{or}\ 
+      \hat{y}^{\text{M1}}_k = 
+      y^{\text{M1}}= 1\\
+      \hfill 0 & \text{otherwise} 
+    \end{cases}
+\end{equation*}
+
+\subsection{Models}
+Since this section intends to give a general overview of the way meta-
+labeling works, the models will use different features in order to 
+simulate relative abundance or scarcity of data. That is:
+
+\begin{itemize}
+	\item M1: $\textbf{X}_1$ \hfill 
+	($N_\text{M1} = 1$) 	\hspace{0.5\textwidth} \\
+	M2: $\hat{y}^{\text{M1}},\ \textbf{X}_2,\ \ldots,\ \textbf{X}_5$ 
+	\hfill ($N_\text{M2} = 5$) \hspace{0.5\textwidth}
+	
+	\item M1: $\textbf{X}_1,\ \textbf{X}_2$ \hfill
+	($N_\text{M1} = 2$) \hspace{0.5\textwidth} \\
+	M2: $\hat{y}^{\text{M1}},\ \textbf{X}_3,\ \textbf{X}_4,\ 
+	\textbf{X}_5$ 
+	\hfill ($N_\text{M2} = 4$) \hspace{0.5\textwidth}
+	
+	\item M1: $\textbf{X}_1,\ \textbf{X}_2,\ \textbf{X}_3$ \hfill 
+	($N_\text{M1} = 3$) \hspace{0.5\textwidth} \\
+	M2: $\hat{y}^{\text{M1}},\ \textbf{X}_4,\ \textbf{X}_5$ 
+	\hfill ($N_\text{M2} = 3$) \hspace{0.5\textwidth}
+	
+	\item M1: $\textbf{X}_1,\ \ldots,\ \textbf{X}_4$ \hfill
+	($N_\text{M1} = 4$) \hspace{0.5\textwidth} \\
+	M2: $\hat{y}^{\text{M1}},\ \textbf{X}_5$ 
+	\hfill ($N_\text{M2} = 2$) \hspace{0.5\textwidth} \\
+\end{itemize}
+
+\textbf{Primary Model (M1):} It will use $y^{\text{M1}}$ as labels. 
+The underlying model used is a single layer neural network with a 
+sigmoid activation function.\\
+
+\vspace{.1cm}
+\noindent
+\textbf{Secondary Model (M2):} It will use $y^{\text{M2}}$ as labels. 
+The underlying model used is a neural network with a hidden layer (25 
+units - leaky ReLU) and an output unit with a sigmoid activation 
+function.\\
+
+\vspace{.1cm}
+\noindent
+\textbf{Meta Model (M1 + M2):} This model is the combination of the 
+previous two models. It will decide to open a position with side 
+$\pm 1$ if the M1 predicts a side $\pm 1$ and the M2 predicts a 1 
+(i.e. M1 is right). In contrast, if M2 predicts a 0 (M1 is wrong), 
+then the Meta Model will not open a position.\\
+
+The obvious question regarding the meta model is why cannot one train 
+a single model instead of dividing the data between models. Although 
+the single model will achieve higher precision scores, it will defeat 
+the purpose of meta-labeling. In other words, one of the strengths of 
+meta-labeling is being able to integrate ML into a 
+fundamental/technical analysis approach or a model already up and 
+running. That is, the secondary model will act as an exogenous model 
+and not something that could have been designed from the start.\\
+
+Lastly, the models will use 80\% of data as in-sample and 20\% of data 
+as out-of-sample. The former will be further divided into training 
+(80\%) and validation (20\%) so as to avoid over fitting.
+
+\subsection{Results}
+Before evaluating the results, a confusion matrix of this project, the 
+``positive'' and ``negative'' outcomes should be defined:
+
+\begin{itemize}
+	\item \textbf{1:} Open a position
+	\item \textbf{0:} Do not open a position
+\end{itemize}
+
+This gives way to:
+
+\begin{itemize}
+	\item \textbf{TP:} Opened a position that was profitable. 
+	\item \textbf{FP:} Opened a losing position.
+	\item \textbf{TN:} Did not open a position that was going to be 
+	unprofitable.
+	\item \textbf{FN:} Took a pass at opening a position that was 
+	going to be profitable. 
+	wrong.
+\end{itemize}
+
+On the other hand, the metrics that will be used to evaluate the 
+models will be the following:
+\begin{itemize}
+	\item \textbf{Recall} $ = \frac{\text{TP}}{\text{TP} + \text{FN}}$
+	
+	\item \textbf{Precision} 
+	$ = \frac{\text{TP}}{\text{TP} + \text{FP}}$
+	
+	\item \textbf{F1 - Score} 
+	$ = \frac{2}{\text{recall}^{-1} + \text{precision}^{-1}}$
+\end{itemize}
+
+\subsubsection{Example}
+This subsection will exemplify what meta-labeling does in terms of 
+relabeling false positives as true negatives, confusion matrices and 
+metrics. The hyper parameters chosen are:
+
+\begin{itemize}
+	\item $\sigma_\epsilon = 0.3$
+	\item $N_{\text{M1}} = 2$
+	\item $N_{\text{M2}} = 4$
+\end{itemize}
+
+As for the results, the confusion matrices of the primary model and 
+Meta Model are shown in figures \ref{toyProjectConfusionMatrixM1} and 
+\ref{toyProjectConfusionMatrixMM}. The primary model (figure
+\ref{toyProjectConfusionMatrixM1}) only predicts opening positions, 
+i.e., it does not have the ability to pass. The Meta Model (figure
+\ref{toyProjectConfusionMatrixMM}) corrects more FP than TP.\\
+
+\begin{figure}[htbp]
+	\centering
+	\scalebox{.8}{
+	\renewcommand\arraystretch{1.5}
+	\setlength\tabcolsep{0pt}
+	\begin{tabular}{c >{\bfseries}r @{\hspace{0.7em}}c 
+	@{\hspace{0.4em}}c @{\hspace{0.7em}}l}
+	  \multirow{10}{*}{\parbox{1.1cm}{\bfseries\raggedleft Actual\\ 
+	  value}} & 
+	    & \multicolumn{2}{c}{\bfseries Prediction outcome} & \\
+	  & & \bfseries 1 & \bfseries 0 & \bfseries Total \\
+	  & 1 & \MyBox{TP}{143} & \MyBox{FN}{0} & 143 \\[2.4em]
+	  & 0 & \MyBox{FP}{57} & \MyBox{TN}{0} & 57 \\
+	  & Total & 200 & 0 &
+	\end{tabular}}
+	\caption{Confusion Matrix - Primary Model (Test)}
+	\label{toyProjectConfusionMatrixM1}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\scalebox{0.8}{
+	\renewcommand\arraystretch{1.5}
+	\setlength\tabcolsep{0pt}
+	\begin{tabular}{c >{\bfseries}r @{\hspace{0.7em}}c @{\hspace{0.4em}}c @{\hspace{0.7em}}l}
+	  \multirow{10}{*}{\parbox{1.1cm}{\bfseries\raggedleft Actual\\ value}} & 
+	    & \multicolumn{2}{c}{\bfseries Prediction outcome} & \\
+	  & & \bfseries 1 & \bfseries 0 & \bfseries Total \\
+	  & 1 & \MyBox{TP}{136} & \MyBox{FN}{7} & 143 \\[2.4em]
+	  & 0 & \MyBox{FP}{41} & \MyBox{TN}{16} & 57 \\
+	  & Total & 177 & 23 &
+	\end{tabular}}
+	\caption{Confusion Matrix - Meta Model (Test)}
+	\label{toyProjectConfusionMatrixMM}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+	\includegraphics[scale=.45]{"\homeCOne/img/toyProjectMetrics"}
+	\caption{Toy Project - Metrics of example (Test)}
+	\label{fig:toyProjectMetrics}
+\end{figure}
+
+			
+\begin{table}[htbp]
+\centering
+	\caption{Toy Project Metrics (Test)}
+	\label{tab:toyProjectResults}
+	\begin{tabular}{ |C{2.5cm}|C{2cm}|C{2cm}|C{2cm}|}
+		\hline
+		Model & F1-Score & Precision & Recall\\
+		\hline
+		Primary Model & 0.8338 & 0.7150 & 1.0000\\ 
+		Meta Model & 0.8500 & 0.7684 & 0.9510\\
+		\hline
+	\end{tabular}
+\end{table}	
+
+The metrics obtained are shown in table \ref{tab:toyProjectResults} 
+and figure \ref{fig:toyProjectMetrics}. As it can be implied from the 
+confusion matrices, the recall has gone down but the precision and F1-
+score have gone up. In particular, the F1-Score has gone up by 2\%, 
+from 0.8338 to 0.85. This increase, even though on modest scale, is 
+what meta-labeling was supposed to do.
+
+\subsubsection{Precision}
+\label{sec:toyProjectPrecision}
+In figures \ref{fig:precisionN1} to \ref{fig:precisionN4}, the 
+precision has been plotted for every $\sigma_{\epsilon}$. Whenever 
+$N_{\text{M1}} \geq 3$, the meta model fails to improve the precision. 
+This could be attributed to the primary model having the majority of 
+the information, so the secondary model is not able to improve in the 
+predictions given by the primary model.\\
+
+On the other hand, if the primary model does not have a full picture 
+of the information ($N_{\text{M1}} \leq 2$), the model is similar to 
+the random model, which has a precision $= 0.5$. That way, the 
+secondary model has more room to improve. To be more specific, if 
+$\sigma_\epsilon \in [0,\ 0.7]\ \bigcup \ [2.6,\ 3]$, i.e. the 
+observations have low/high signal-to-noise ratio (high/low 
+$\sigma_\epsilon$), the meta model performs better.
+
+\begin{figure}[htbp]
+\centering
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/precisionN1"}
+	  	\caption{Precision (Test) - $N_{\text{M1}} = 1$}
+	  	\label{fig:precisionN1}
+	\end{minipage}%
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/precisionN2"}
+		\caption{Precision (Test) - $N_{\text{M1}} = 2$}
+		\label{fig:precisionN2}
+	\end{minipage}
+
+	\vspace{.5cm}
+
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/precisionN3"}
+		\caption{Precision (Test) - $N_{\text{M1}} = 3$}
+		\label{fig:precisionN3}
+	\end{minipage}%
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/precisionN4"}
+		\caption{Precision (Test) - $N_{\text{M1}} = 4$}
+		\label{fig:precisionN4}
+	\end{minipage}
+\end{figure}
+
+\subsubsection{Recall}
+\label{sec:toyProjectRecall}
+In figures \ref{fig:recallN1} to \ref{fig:recallN4}, the recall has 
+been plotted for every $\sigma_\epsilon$. Before anything, observe 
+that the primary model, independently of $\sigma_\epsilon$ and 
+$N_{\text{M1}}$, always has a recall of 1. That is because the primary 
+model does not have the ability to pass on a position. In other words, 
+it always spits out a side, so in any event, a position is always 
+opened (it only predicts 1's).\\
+
+That being said, as in section \ref{sec:toyProjectPrecision}, note 
+that the meta model does not do a thing whenever $N_{\text{M1}} \geq 
+3$. Additionally, if $\sigma_\epsilon \in [0,\ 0.7]$, then it is 
+observed that for $N_{\text{M1}} \leq 2$ the recall falls 
+considerably, so one can imply that if $\sigma_\epsilon$ is close to 
+0, then the recall falls due to the secondary model filtering trades.
+
+\begin{figure}[htbp]
+\centering
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/recallN1"}
+	  	\caption{Recall (Test) - $N_{\text{M1}} = 1$}
+	  	\label{fig:recallN1}
+	\end{minipage}%
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/recallN2"}
+		\caption{Recall (Test) - $N_{\text{M1}} = 2$}
+		\label{fig:recallN2}
+	\end{minipage}
+
+	\vspace{.5cm}
+
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/recallN3"}
+		\caption{Recall (Test) - $N_{\text{M1}} = 3$}
+		\label{fig:recallN3}
+	\end{minipage}%
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/recallN4"}
+		\caption{Recall (Test) - $N_{\text{M1}} = 4$}
+		\label{fig:recallN4}
+	\end{minipage}
+\end{figure}
+
+\subsubsection{F1-Score}
+\label{sec:toyProjectF1Score}
+In figures \ref{fig:F1ScoreN1} to \ref{fig:F1ScoreN4}, the F1-Score 
+has been plotted for every $\sigma_\epsilon$. As it has been seen in 
+\ref{sec:toyProjectPrecision} and \ref{sec:toyProjectRecall}, if 
+$N_{\text{M1}} \geq 3$, the performance of the primary and meta model 
+is indistinguishable. Furthermore, if $N_{\text{M1}} \leq 2$, the 
+F1-Score slightly improved when $\sigma_\epsilon$ was low 
+($\sigma_\epsilon \leq 0.6$).
+
+\begin{figure}[htbp]
+\centering
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/F1ScoreN1"}
+	  	\caption{F1-Score (Test) - $N_{\text{M1}} = 1$}
+	  	\label{fig:F1ScoreN1}
+	\end{minipage}%
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/F1ScoreN2"}
+		\caption{F1-Score (Test) - $N_{\text{M1}} = 2$}
+		\label{fig:F1ScoreN2}
+	\end{minipage}
+
+	\vspace{.5cm}
+
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/F1ScoreN3"}
+		\caption{F1-Score (Test) - $N_{\text{M1}} = 3$}
+		\label{fig:F1ScoreN3}
+	\end{minipage}%
+	\begin{minipage}{.5\textwidth}
+	\centering
+		\includegraphics[scale=.25]{"\homeCOne/img/toyProject/F1ScoreN4"}
+		\caption{F1-Score (Test) - $N_{\text{M1}} = 4$}
+		\label{fig:F1ScoreN4}
+	\end{minipage}
+\end{figure}
+
+\subsection{Conclusions}
+In conclusion, the meta-labeling needs a specific setting so as to 
+deliver better results. In fact, two situations have been identified:
+
+\begin{enumerate}
+	\item M1 performs poorly (low precision) and/or has few features
+	with predicting 	power (in this case, low $N_{\text{M1}}$).
+	\item M1 has the majority of the features with high predicting 
+	power (in this case, high $N_{\text{M1}}$), i.e., it is already a 
+	\textit{good} model.
+\end{enumerate}
+
+In situation 1, the meta model will perform better, in an F1-Score 
+sense, whenever $\sigma_\epsilon$ is low and $N_{\text{M2}}$ is high. 
+To put it another way, if the observations do not have a lot of noise, 
+then the secondary model is able to correct the bad performance of the 
+primary model. Note that since the 5 features are shared, whenever the 
+primary model has few features with predicting power then the 
+secondary model has a lot of predicting power.\\
+
+In situation 2, M1 is already a decent model (recall = 1 and high 
+precision when $\sigma_\epsilon$ is low). Consequently, it is very 
+difficult to improve its performance. In fact, the F1-Score of the 
+meta model is identical to the one of M1 because the secondary model 
+fails to introduce new information (low $N_{\text{M2}}$).\\
+
+The next step will be to try this methodology in financial data, which 
+will be more challenging, since the synthetic data was designed to be 
+somewhat predictable, even though it had Gaussian white noise.
+
+\section{Data}
+The universe of stocks considered are the ones that have been part of 
+the S\&P500 in the period considered; 01-01-2000 to 09-01-2020. The 
+stocks that have missing values or have gone bankrupt have been 
+dropped out of the dataset. \\
+
+The portfolio is not a proxy for the S\&P500 GMVP since the portfolio 
+considered presents look-ahead bias. That is, if one were to compute 
+day-to-day the GMVP portfolio, one would not obtain the same results 
+since the \textit{losers} (companies that have gone bankrupt) have 
+been removed, and the \textit{winners} (future constituents of the 
+index) have been added. Nonetheless, this chapter has not been 
+designed in order to beat the index. In fact, this chapter has been 
+designed with a focus on delivering better risk-adjusted results, 
+i.e., higher Sharpe Ratios. \\
+
+The tickers of the stocks considered are shown in tables 
+\ref{table:tickers} and \ref{table:tickersCont} (pages
+\pageref{table:tickers} and \pageref{table:tickersCont} resp.).
+
+\subsection{Removal of outliers}
+\label{sec:removalOutliers}
+In an attempt to reduce the influence of outliers on the model, the 
+data has been cleaned using the R package imputeFin \cite{imputeFin}.
+ In particular, the function \textbf{impute\_AR1\_t} has been used 
+ with the following parameters:
+
+\begin{itemize}
+	\item \textbf{outlier\_prob\_th} $= 0.005$ - Threshold of 
+	probability of observation to declare an outlier.
+	\item \textbf{remove\_outliers} = TRUE
+\end{itemize}
+
+In order to apply the function, data has been divided into 10 chunks. 
+Then, log-prices will be fitted an autoregressive model of order 1 
+where the residuals follow a t-Student distribution.
+
+% \todo[shadow, color=gray!40]{How many df? Least squares?} with 
+% \ldots degrees of freedom:}
+
+\begin{equation*}
+	\log (p_t) = \phi_0 + \phi_1 \cdot \log (p_{t-1}) + \epsilon_t
+\end{equation*}
+
+The AR(1) model together with \textbf{outlier\_prob\_th} identifies 
+the outliers  and imputes values so as to preserve statistical 
+parameters in the time series. In figure \ref{fig:removalOutlierGMVP} 
+one can see the difference between the original log-price time series 
+(GMVP Outliers) and the imputed one (GMVP Imputed).
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.4]{"\homeCOne/img/removalOutliersGMVP"}
+	\caption{Imputed log-price time series of the GMVP}
+	\label{fig:removalOutlierGMVP}
+\end{figure}
+
+\subsection{Division of Data}
+The data is divided as following (see figure \ref{fig:dataDivision}):
+
+\vspace{.1cm}
+
+\textbf{In-Sample:}
+\begin{itemize}
+	\item Train (2001-08-06/2013-10-18): Data set that will be used to 
+	train the ML models.
+	
+	\item Validation (2013-10-21/2016-11-04): Data set to assess the 
+	performance of the ML model. It will be used to tune the 
+	hyper parameters.
+\end{itemize}
+
+\textbf{Out-of-sample:}
+\begin{itemize}
+	\item Test (2016-11-07/2020-08-31): In this data set, the model 
+	will generate \textit{out-of-sample} predictions and the 
+	performance will be close to real since data will be seen for the 
+	first time.
+\end{itemize}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=.9\textwidth]{"\homeCOne/img/dataDivision"}
+	\caption{Data Division}
+	\label{fig:dataDivision}
+\end{figure}	
+
+\section{Labeling (Triple barrier)}
+\label{sec:tripleBarrier}
+In section \ref{sec:intro}, \textit{The Fixed-Time Horizon Method} was 
+discussed. In an attempt to improve the previous method, MLDP defined 
+the triple barrier method \cite{AdvFML}. It consists in:
+
+\begin{itemize}
+	\item \textbf{Horizontal barriers:} Dynamic levels that depend on 
+	the 10 day rolling volatility.
+	\item \textbf{Vertical barrier:} Set as a fixed time horizon. In 
+	this case, 10 days.
+\end{itemize}
+
+Then, $t_{i,0}$ is the start day, $t_{i,0} + h$ the vertical barrier 
+and $p_{t_{i,0}}$ the price at time $t_{i,0}$. Also, 
+$p_{t_{i,0}} + \text{pt} \cdot \sigma_{t_{i,0}}$ is the upper 
+horizontal barrier and $p_{t_{i,0}} - \text{sl} \cdot 
+\sigma_{t_{i,0}}$ the lower horizontal barrier, where 
+$\sigma_{t_{i,0}}^2 = \frac{\sum_{k=0}^{19}(r_{t_{i,0}-k} - \bar{r}
+_{[t_{i,0}-19, t_{i,0}]})^2}{20 - 1}$. Lastly, hyper-parameters
+\textbf{pt} and \textbf{sl} both have been set to 
+\textbf{2}.\\
+
+With these variables, the condition to exit a position that was opened 
+at time $t_{i,0}$ is hitting a barrier. Note that exiting is assured 
+since at most the position will be open for 10 days (vertical 
+barrier).\\
+
+When a barrier is hit ($t_{i,1}$), the return is computed as:
+
+\begin{equation}
+	r_i = \left[ (1 - \text{tc})^2 \cdot 
+	\frac{p_{t_{i,1}}}{p_{t_{i,0}}} \right]- 1
+\end{equation}
+
+Where \textbf{tc} is the one-way transaction cost, which has been fixed at \textbf{5 bps} (0.05\%).\\
+
+Combining everything, the observations are labeled as:
+\begin{equation}
+	y_i =
+    \begin{cases}
+      1 & \text{if}\ r_i > 0 \\
+      0 & \text{otherwise}
+    \end{cases}
+\end{equation}
+
+In figure \ref{fig:tripleBarrierSymmetric}, an observation
+\textbf{labeled 1} can be seen. In early January 2002 the barriers 
+start and the price touched the upper horizontal barrier first, hence, 
+obtaining a positive return.
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=.75\textwidth]
+	{"\homeCOne/img/tripleBarrierSymmetric"}
+	\caption{Triple Barrier Labeling (Symmetric barriers)}
+	\label{fig:tripleBarrierSymmetric}
+\end{figure}
+
+\subsection{Adaptation when the side is known}
+\label{sec:tripleBarrierSide}
+Noting the side of the trade as $\hat{y}^{\text{M1}}_{i} \in 
+\{1,-1\}$, that is, either long or short. Accordingly, the method can 
+be modified to include these changes:
+
+\begin{equation}
+	r_i = \left( \left[ (1 - \text{tc})^2 \cdot 
+	\frac{p_{t_{i,1}}}{p_{t_{i,0}}} \right] - 1 \right) \cdot 
+	\hat{y}^{\text{M1}}_{i}
+\end{equation}
+
+Combining everything, the observations are labeled as:
+\begin{equation}
+	\hat{y}^{\text{M2}}_i =
+    \begin{cases}
+      1 & \text{if}\ r_i > 0 \\
+      0 & \text{otherwise}
+    \end{cases}
+\end{equation}
+
+Apart from that, the horizontal barriers should be changed since it 
+has been predicted that the stock will go up/down (long/short):
+
+\begin{equation}
+	\delta_{+, t_{i,0}} =
+    \begin{cases}
+      \text{pt} \cdot \sigma_{t_{i,0}-1} & \text{if}\ 
+      \hat{y}^{\text{M1}}_{i} = 1 \\
+      \min(0.005,\ 0.5 \cdot \text{pt} \cdot \sigma_{t_{i,0}-1}) & 
+      \text{otherwise}
+    \end{cases}
+\end{equation}
+
+\begin{equation}
+	\delta_{-, t_{i,0}} =
+    \begin{cases}
+      \text{sl} \cdot \sigma_{t_{i,0}-1} & \text{if}\ 
+      \hat{y}^{\text{M1}}_{i} = -1 \\
+      \min(0.005,\ 0.5 \cdot \text{sl} \cdot \sigma_{t_{i,0}-1}) & 	
+      \text{otherwise}
+    \end{cases}
+\end{equation}
+
+Therefore, the price will oscillate between $[ p_{t_{i,0}} - 
+\delta_{-, t_{i,0}}, \ p_{t_{i,0}} + \delta_{+, t_{i,0}} ]$. Also, 
+note that $t_{i,0} - 1$ represents the last trading day before 
+$t_{i,0}$ because to compute the barriers of dat $t_{i,0}$ only 
+information \textbf{up to that day} should be used.\\
+
+In figure \ref{fig:tripleBarrierSide} an example can be seen which 
+presents a side $= -1$ (short). As the prediction says the price 
+should go down, the upper horizontal barrier has been lowered. In this 
+case, since the price has hit the upper horizontal barrier and the 
+side was $-1$, then the observation will be \textbf{labeled 0}.
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=.75\textwidth]
+	{"\homeCOne/img/tripleBarrierSide"}
+	\caption{Triple Barrier Labeling - Side $= -1$ (Short)}
+	\label{fig:tripleBarrierSide}
+\end{figure}
+
+\section{Models}
+\label{sec:models}
+Bet-sizing is a common problem within the practitioner scene. That is, 
+investors often know the side of the position they want to open 
+(long/short or pass) but the size is unknown to them. Hence, an 
+exogenous model that could base its predictions on some features, and 
+the side prediction, comes into play.\\
+
+The structure will be the following:
+
+\begin{itemize}
+	\item \textbf{Primary Model:} A set of features is used to give a 
+	prediction on the side of the position. It can be based on 
+	fundamental analysis, ML, technical analysis, etc.
+	
+	\item \textbf{Secondary Model:} This model uses another set of 
+	features that contains the prediction of the primary model. It 
+	aims to give a prediction on the size of the position.
+	
+	\item \textbf{Meta Model:} It decides the side (primary model) and 
+	the size (secondary model). It is merely a combination of both 
+	models.
+\end{itemize}
+
+The following example shows how the models work:
+
+\begin{gather*}
+	f_{primary}(\textbf{$X_{\text{M1}}$}) = 0.89\\
+	f_{secondary}(\{0.89, \textbf{$X_{\text{M2}}$}\}) = 0.33
+\end{gather*}
+
+\begin{table}[htbp]
+\caption{Example Metalabeling}
+\label{table:exMetalabeling}
+\centering
+\begin{tabular}{|C{3cm}|C{3cm}|C{3cm}| }
+	\hline
+	Model & Threshold & Prediction\\
+	\hline
+	Primary & 0.63 & 0.89\\
+	\hline
+	Secondary & 0.41 & 0.33\\
+	\hline
+\end{tabular}
+\end{table}
+
+Considering that $Im(f_{primary}) \subset [0, 1]$ (i.e., no shorting) 
+and $Im(f_{secondary}) \subset [0, 1]$ then, one can conclude from the 
+results in table \ref{table:exMetalabeling} that:
+
+\begin{gather*}
+		0.89 > 0.63 = \text{threshold}_{\text{M1}} \Rightarrow 
+		\text{Long position}\\
+		0.33 \leq 0.41 =\text{threshold}_{\text{M2}} \Rightarrow 
+		\text{Not enough confidence to open the position}
+\end{gather*}
+
+The primary model hinted that a long position should be opened. 
+However, the secondary model evaluated the choice of the primary model 
+and decided not to open the position, since it did not meet the 
+principal criteria: exceeding the threshold. Note that the threshold 
+column in table \ref{table:exMetalabeling} will be determined in a way 
+that maximizes a carefully chosen performance metric.\\
+
+Summing all up:
+
+\begin{itemize}
+	\item Develop a primary model (M1) that determines the side 
+	of a trade
+	\item \textbf{Whenever M1 says that one should open a position}, 
+	determine whether M1 gave a correct output or it was wrong 
+	(\textbf{meta-labeling - labeling a model})
+	\item With the output of M1, a set of features (they can be the 
+	same) and the previous labels develop a secondary model (M2)
+	\item If M1 tells you to trade and M2's prediction surpasses the 
+	threshold of M2, open a position with the side given from M1.
+\end{itemize}
+
+\section{Binary classification problem}
+Now that the way observations will be labeled has been explained, and 
+the models involved have been presented, it is relevant to address the 
+binary classification problem that this chapter attempts to solve.\\
+
+The events that one wants to predict are the entries to profitable 
+investment opportunities, i.e.,:
+
+\begin{itemize}
+	\item 1 = \textbf{Open a position}
+	\item 0 = \textbf{Do not open a position}
+\end{itemize}
+
+% Last remark
+
+Having laid out the objective of the problem, the following variables 
+will be defined:
+
+\begin{itemize}
+	\item \textbf{True Positive} (TP) 
+	$\hat{y}^{\text{M2}}_i = 1 = y^{\text{M2}}_i$
+		
+	\item \textbf{False Positive} (FP) 
+	$\hat{y}^{\text{M2}}_i = 1 \neq y^{\text{M2}}_i$
+	
+	\item \textbf{True Negative} (TN) 
+	$\hat{y}^{\text{M2}}_i = 0 = y^{\text{M2}}_i$
+	
+	\item \textbf{False Negative} (FN) 
+	$\hat{y}^{\text{M2}}_i = 0 \neq y^{\text{M2}}_i$
+	
+	\item \textbf{Recall} $ = \frac{\text{TP}}{\text{TP} + \text{FN}}$
+	
+	\item \textbf{Precision} 
+	$ = \frac{\text{TP}}{\text{TP} + \text{FP}}$
+	
+	\item \textbf{F1 - Score} 
+	$ = \frac{2}{\text{recall}^{-1} + \text{precision}^{-1}}$
+\end{itemize}
+
+Where $\hat{y}^{\text{M2}}$ are the predictions and $y^{\text{M2}}$ 
+are the true labels of M2.\\
+
+The idea behind meta-labeling lays in dividing the classification task 
+into two parts. First, a model will act as an initial filter that has 
+high recall, i.e., it catches most of the profitable opportunities, 
+some being false positives. The second model, whenever the first has 
+predicted that there is a profitable opportunity, will 
+``double-check'' the supposed positive and will decide whether it is 
+a positive or a negative. By doing that, the overall precision will 
+improve, getting better F1-scores (since recall was initially high).
+
+\section{Primary Model}
+\label{sec:primaryModel}
+The main role of the primary model is to find investment opportunities 
+and output the side (long/short). In a sense, it could be thought as a 
+meta model where the secondary model always tell you to open a 
+position.
+
+\subsection{MA based Primary Model}
+\label{sec:MAPrimaryModel}
+This primary model uses a Moving Average (MA) crossover strategy with 
+a 20 day look-back period to output the side of the investment. The 
+day of entry will be determined with the CUSUM filter. It can all be 
+summed up in the following equations:
+
+\begin{equation}
+\label{eqn:MA}
+	\text{MA}_t = \frac{\sum_{i = 0}^{19} p_{t-i}}{20}
+\end{equation}
+
+Whit the MA computed, the predicted side of the position follows:
+
+\begin{equation}
+\label{eqn:MAcrossover}
+	\hat{y}_{t+1}^{\text{M1}} =
+	\begin{cases}
+		1  & \text{if}\ \text{MA}_t < p_t\\
+		-1 & \text{if}\ \text{MA}_t \geq p_t
+	\end{cases}
+\end{equation}
+
+Note that the side generated is of the following trading day ($t+1$) 
+because the information ($\text{MA}_t$) is received at the end of day 
+$t$ and one can invest with those insights the next trading day.\\
+
+On the other hand, the true labels are:
+
+\begin{equation}
+	y_{i}^{\text{M1}} = 
+	\begin{cases}
+	\hfill 1 & \text{if}\ 
+	\tilde{r}_i = \frac{p_{t_{i,1}}}{p_{t_{i,0}}} -1 > 0\\
+	\hfill -1 & \text{otherwise}	
+	\end{cases}
+\end{equation}
+
+The entry points will be determined by structural breaks identified by 
+the symmetric CUSUM (cumulative sum) filter, defined by:
+
+\begin{gather*}
+	\text{CUSUM}_{+,\ t} = \max \left( 0,\ \text{CUSUM}_{+,\ t-1} + 
+	\log \left( \frac{p_t}{p_{t-1}} \right) \right)\\	
+	\text{CUSUM}_{-,\ t} = \min \left( 0,\ \text{CUSUM}_{-,\ t-1} + 
+	\log \left( \frac{p_t}{p_{t-1}} \right) \right)
+\end{gather*}
+
+With the boundary conditions $\text{CUSUM}_{+,\ 0} = 
+\text{CUSUM}_{-,\ 0} = 0$.\\
+
+The filters \textbf{are reset to 0 whenever}
+$\text{CUSUM}_{+,\ t} > \hat{\sigma}_t$ or $\text{CUSUM}_{-,\ t} < 
+-\hat{\sigma}_t$, where $\hat{\sigma}_t$ is the volatility of 
+logarithmic returns using a 20 day window. Whenever this reset 
+happens, it will be said that \textbf{the filters have been 
+activated.}\\
+
+Hence at this point, at day $t+1$ one should enter if either of the 
+CUSUM filters are activated at day $t$ and there are no positions 
+open. The side is computed using the formula shown in equation 
+\ref{eqn:MAcrossover}.\\
+
+Finally, to exit the position, one needs to compute the vertical and 
+horizontal barriers as it was explained in subsection 
+\ref{sec:tripleBarrierSide}. On the occasion that the price time 
+series moves past a barrier, one should  proceed to close the 
+position.
+
+\subsection{ML based Primary Model}
+\label{sec:MLPrimaryModel}
+This model is slightly different that the one based on MA. It aims to 
+train a neural network with a hidden layer (20 fully connected units 
+- Leaky ReLU) and an output layer (Sigmoid). It will be in charge of 
+predicting the side (1 = long, -1 = short).\\
+
+Firstly, let's present the features that the neural network will use. 
+Note that the features of day $\textbf{t+1}$ use information 
+\textbf{only} from previous days, not the current day.
+
+\begin{itemize}
+	\item $\text{F1}_{t+1} \equiv \log \left( \frac{\text{MA}_t}{p_t} 
+	\right)$
+	
+	\item $\text{F2}_{t+1} \equiv \frac{\text{CUSUM}_{+,\ t}}{
+	\sigma_t}$
+	
+	\item $\text{F3}_{t+1} \equiv \frac{\text{CUSUM}_{-,\ t}}
+	{\sigma_t}$
+	
+	\item $\text{F4}_{t+1} \equiv \textbf{Reset}_{\text{CUSUM}_{+},t}$ 
+	: Binary variable that indicates if the positive CUSUM filter 	
+	became activated at time $t$.
+	
+	\item $\text{F5}_{t+1} \equiv \textbf{Reset}_{\text{CUSUM}_{-,t}}$
+	: Binary variable that indicates if the negative CUSUM filter 	
+	became activated at time $t$.
+	
+	\item $\text{F6}_{t+1} \equiv \text{EWMSD}_t$ 
+	: Exponentially weighted moving standard deviation of linear 
+	returns.
+\end{itemize}
+
+Where $\sigma_t^2 = \frac{\sum_{i=0}^{19}(r_{t-i} - 
+\bar{r}_{t-19, t})^2}{20 - 1}$.\\
+
+In this model one does not depend on the CUSUM filter to determine the 
+date to open a position. The neural network, with the  features given, 
+will decide the side and the position will be opened. That being said, 
+with the intention of matching features and labels, the latter have 
+been defined as:
+
+\begin{equation}
+	y_{i}^{\text{M1}} = 
+	\begin{cases}
+	\hfill 1 & \text{if}\ \tilde{r}_i > 0\\
+	\hfill -1 & \text{otherwise}	
+	\end{cases}
+\end{equation}
+
+Where $\tilde{r}_i = \frac{p_{t_{i,1}}}{p_{t_{i,0}}} -1 $ is the 
+realized return using the triple barrier method, $t_{i,0}$ the start 
+day and $t_{i,1}$ the day one of the barriers is hit. Also, remember 
+that since side is unknown, the horizontal barriers will be defined 
+with $\delta_{+, t_{i,0}} = \delta_{-, t_{i,0}} = \sigma_{t_{i,0}-1}$.
+
+\section{Secondary Model}
+\label{sec:secondaryModel}
+As it was explained in section \ref{sec:models} the idea behind a 
+secondary model is to train a model capable of learning how to use the 
+primary model, deciding when one should/should not enter. Being more 
+specific, it will filter the positives predicted from the primary 
+model.\\
+
+Similarly to what it was done in section \ref{sec:primaryModel} the 
+models will be adapted to the 2 primary models defined.
+
+\subsection{MA based Secondary Model}
+\label{sec:MASecondaryModel}
+This model will use a random forest trained with the following
+\textbf{labels:}
+
+\begin{equation*}
+	y^{\text{M2}}_i =
+	\begin{cases}
+	1 & \text{if}\ y^{\text{M1}}_i = \hat{y}^{\text{M1}}_i\\
+	0 & \text{otherwise}
+	\end{cases}
+\end{equation*}
+
+Note that this definition matches the one in subsection 
+\ref{sec:tripleBarrierSide} since:
+
+\begin{equation*}
+	y^{\text{M1}}_i = \hat{y}^{\text{M1}}_i \Rightarrow 
+	r_i	= \left( \frac{p_{t_{i,1}}}{p_{t_{i,0}}} - 1 \right) \cdot 
+	\hat{y}^{\text{M1}}_i > 0
+\end{equation*}
+
+Additionally, the following features for day $\boldsymbol{t_{i,0}}$ 
+will be used:
+
+\begin{itemize}	
+	\item $\log \left( \frac{\text{MA}_{(t_{i,0}-1)}}{p_{(t_{i,0}-1)}} 
+	\right)$
+	
+	\item $r_{(t_{i,0}-1)}$: return of the previous day.
+	
+	\item $\underline{r_{(t_{i,0}-1)}} \equiv \left( 
+	\prod_{k=0}^{4} (1 + r_{t_{i,0}-k-1}) 
+	\right) - 1$: Cumulative return of a 5 day window.
+	
+	\item $\hat{y}_{i}^{\text{M1}}$
+
+	\item $\text{RSI}_{(t_{i,0}-1),\ 9},\ 
+	\text{RSI}_{(t_{i,0}-1),\ 14},\ 
+	\text{RSI}_{(t_{i,0}-1),\ 25}$:
+	Relative Strength Indicator (RSI) of linear returns using a 9, 14 
+	and 25 days window respectively.
+	
+	\item $\tilde{\sigma}_{(t_{i,0}-1)}$: Exponentially weighted 
+	volatility using a 21 day ($\approx$ 1 trading month) window.
+	
+	\item $\sigma_{(t_{i,0}-1),\ 9},\ \sigma_{(t_{i,0}-1),\ 14},\ 
+	\sigma_{(t_{i,0}),\ 25}$: Volatility of linear returns using a 9, 
+	14 and 25 days window respectively.
+	
+	\item $R_{(t_{i,0}-1),\ 1},\ R_{(t_{i,0}-1),\ 5}$: 
+	Auto-correlation function of returns with 1 and 5 days lag 
+	respectively.
+\end{itemize}
+
+The meta model (primary + secondary), together with the threshold 
+$\text{thr}_{\text{M1}}$, will work using the following cases:
+
+\begin{enumerate}
+	\item Check if a position is currently open
+	
+	\item If no position is open then compute the side 
+	($\hat{y}_i^{\text{M1}}$) and predict the size 
+	($\hat{y}_i^{\text{M2}}$) using the primary and secondary model 
+	respectively.
+	
+	\item 
+	Go long if: 
+		\begin{itemize}
+			\item $\hat{y}_i^{\text{M1}} = 1$ and 
+			$\hat{y}^{\text{M2}} > \text{thr}_{\text{M2}}$ - The 
+			primary model was right about going long.
+		\end{itemize}
+	
+	Go short if:
+		\begin{itemize}
+			\item $\hat{y}_i^{\text{M1}} = -1$ and 
+			$\hat{y}^{\text{M2}} > \text{thr}_{\text{M2}}$ - The 
+			primary model was right about going short.
+		\end{itemize}
+
+	Otherwise, the secondary model infers that there is not enough 
+	confidence to open a position and one should return to point 1 
+	using data from the	next possible entry point.
+	
+	\item Open a position and exit using the triple barrier method.
+	
+	\item Return to point 1 using data from the next possible entry 
+	point.
+\end{enumerate}
+
+\subsection{ML based Secondary Model}
+\label{sec:MLSecondaryModel}
+This model will use a neural network with a hidden layer (25 fully 
+connected units - Leaky ReLU) and an output layer (Sigmoid). The 
+labeling technique is the same as the one found in 
+\ref{sec:MASecondaryModel}:
+
+\begin{equation*}
+	y^{\text{M2}}_i =
+	\begin{cases}
+	1 & \text{if}\ y^{\text{M1}}_i = \hat{y}^{\text{M1}}_i\\
+	0 & \text{otherwise}
+	\end{cases}
+\end{equation*}
+The features for day $\boldsymbol{t_{i,0}}$ are the same as the ones 
+found in the MA based Secondary Model (\ref{sec:MASecondaryModel}): \\
+
+$\hat{y}_i^{\text{M1}},\
+\log \left( \frac{\text{MA}_{(t_{i,0}-1)}}{p_{(t_{i,0}-1)}} \right),\
+r_{(t_{i,0}-1)},\
+\underline{r_{(t_{i,0}-1)}},\
+\hat{y}_i^{\text{M1}},\
+\text{RSI}_{(t_{i,0}-1),\ 9},\
+\text{RSI}_{(t_{i,0}-1),\ 14},\
+\text{RSI}_{(t_{i,0}-1),\ 25},\
+\tilde{\sigma}_{(t_{i,0}-1)},\\
+\sigma_{(t_{i,0}-1),\ 9},\
+\sigma_{(t_{i,0}-1),\ 14},\
+\sigma_{(t_{i,0}-1),\ 25},\
+R_{(t_{i,0}-1),\ 1} \text{ and } R_{(t_{i,0}-1),\ 5}$
+
+
+\vspace{.5cm}
+
+The meta model (primary + secondary) will follow the same procedure 
+from subsection \ref{sec:MLSecondaryModel} to open/close a position.
+
+\section{Hyper-parameter tuning via cross-validation}
+\subsection{Cross-Validation MA based Models}
+As it has been seen in subsections \ref{sec:MAPrimaryModel}, 
+\ref{sec:MLPrimaryModel}, \ref{sec:MASecondaryModel} and 
+\ref{sec:MLSecondaryModel}, thresholds are important parameters when 
+deciding whether to open a position or not. Consequently, attention 
+should be paid so as to achieve the best performance possible. This is 
+where the Sharpe Ratio comes into play.\\
+
+Suppose one has obtained a daily time series ($r_t$) of returns from a 
+model. Then one can define the annualized Sharpe Ratio:
+
+\begin{equation}
+	\text{SR} = \frac{\text{mean}(\hat{r}_t)}{\text{sd}(\hat{r}_t)} 
+	\cdot \sqrt{\frac{\# \text{oportunities}}{\# \text{years}}}
+\end{equation} 
+
+Where $\hat{r}_t$ is the time series without the zero returns (days 
+where the model has decided not to enter), $\#\text{opportunities}$ is 
+the number of observations of the time series $\hat{r}_t$ and 
+$\# \text{years}$ are the number of years elapsed from the first to 
+the last observation of the time series $\hat{r}_t$.\\
+
+It is important to point out that a Buy \& Hold strategy (buying the 
+portfolio and only re balancing periodically) presents the following 
+properties: 
+
+\begin{enumerate}
+	\item $\hat{r}_t = r_t$ because the strategy keeps always a 
+	position open. Hence, there are 0 days with zero returns.
+	
+	\item $\frac{\# \text{opportunities}}{\# \text{years}} = 252$ 
+	(Trading days in a year) for the same reason as in point 1.	
+\end{enumerate}
+
+Having defined all these variables, the idea behind having a separate 
+data set that has not been explicitly trained on, is to determine the 
+threshold that performs best. More accurately, the threshold that 
+obtains the best Sharpe Ratio, given that it has enough observations 
+to assure that the Sharpe Ratio is not misleading.\\
+
+The criteria that has been used to determine whether there are enough 
+observations is the following:
+
+\begin{itemize}
+	\item For every threshold compute the number of times the model 
+	decides to enter, which will be called number of discrete returns. 
+	Note that it is different than the number of days the model has 
+	kept a position open.
+	
+	\item Compute the median.
+	
+	\item If the number of discrete returns surpasses half the median,
+	then it is labeled ``Enough observations''.
+\end{itemize}
+
+The idea behind this filter is to avoid over fitting. By choosing a 
+threshold that has a low number of discrete returns then it is likely 
+that it will not perform as good out-of-sample because there are few 
+observations.\\
+
+Since the primary model is based on MA crossovers, which are 
+deterministic, there are not hyper parameters to tune. However, the 
+CUSUM filter determined that a position should be opened when 
+$\text{CUSUM}_{+,\ t} > \hat{\sigma}_t$ or 
+$\text{CUSUM}_{-,\ t} < -\hat{\sigma}_t$. This can be adapted by 
+scaling the volatility using $\text{thr}_{\text{CUSUM}}$, i.e., 
+opening a position (and resetting) whenever:
+
+\begin{itemize}
+	\item $\text{CUSUM}_{+,\ t} > \text{thr}_{\text{CUSUM}} \cdot
+	\hat{\sigma}_t$
+	\item $\text{CUSUM}_{-,\ t} < -\text{thr}_{\text{CUSUM}} \cdot
+	\hat{\sigma}_t$
+\end{itemize}
+
+
+As it can be seen in table \ref{tab:CV_MA_M1}, the results are far 
+from satisfactory. Negative Sharpe Ratios are misleading since a small 
+standard deviation can throw things off when returns are close to 
+0 but negative.\\
+
+\begin{table}[htbp]
+\caption{Results cross-validation Primary Model (MA)}
+\label{tab:CV_MA_M1}
+\centering
+\begin{tabular}{ |C{3cm}|C{3cm}|C{3cm}| }
+	\hline
+	$\text{thr}_{\text{CUSUM}}$ & Final wealth & SR Primary 
+	Model (Validation)\\
+	\hline
+	0.25 & 0.6533 & -1.3585\\ 
+	0.60 & 0.6449 & -1.4021\\ 
+	0.95 & 0.6566 & -1.4137\\  % Meta model va muy bien (SR 0.4)
+	1.30 & 0.6290 & -1.6683\\  % Meta model va mal (SR -0.24)
+	1.65 & 0.6758 & -1.5189\\ % Meta (SR -0.27)
+	2.00 & 0.7419 & -1.1885\\ 
+	\hline
+\end{tabular}
+\end{table}
+
+That is why it has been decided to determine 
+$\text{thr}_{\text{CUSUM}}$ indirectly. This will be done by computing 
+the best Sharpe Ratio (using the meta model) for every 
+$\text{thr}_{\text{CUSUM}}$. Lastly, the threshold that enables the 
+meta model to achieve the highest SR will be chosen. Table 
+\ref{tab:results_SR_MA_M2} summarizes the results and figures 
+\ref{fig:thr1} through \ref{fig:thr6} get into detail about the SR 
+obtained for every threshold.\\
+
+From table \ref{tab:results_SR_MA_M2} one can conclude that 
+$\text{thr}_{\text{CUSUM}} = 0.25$ performs best, since it achieves a 
+SR of 0.4971. Hence, this threshold will be fixed from now on.
+
+\begin{table}[htbp]
+\caption{Results cross-validation Meta Model (MA)}
+\label{tab:results_SR_MA_M2}
+\centering
+\begin{tabular}{ |C{3.5cm}|C{3.5cm}| }
+	\hline
+	$\text{thr}_{\text{CUSUM}}$ & SR Meta Model (Validation)\\
+	\hline
+	0.25 &  0.4971\\
+	0.60 & -0.1333\\
+	0.95 &  0.4230\\
+	1.30 &  0.0051\\
+	1.65 &  0.2348\\
+	2.00 & -0.4674\\
+	\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{.5\textwidth}
+  \centering
+  \includegraphics[scale=.25]{"\homeCOne/img/CV_MA_M2_thr1"}
+  \caption{SR MM CV ($\text{thr}_{\text{CUSUM}} = 0.25$)}
+  \label{fig:thr1}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+  \centering
+  \includegraphics[scale=.25]{"\homeCOne/img/CV_MA_M2_thr2"}
+  \caption{SR MM CV ($\text{thr}_{\text{CUSUM}} = 0.60$)}
+  \label{fig:thr2}
+\end{minipage}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{.5\textwidth}
+  \centering
+  \includegraphics[scale=.25]{"\homeCOne/img/CV_MA_M2_thr3"}
+  \caption{SR MM CV ($\text{thr}_{\text{CUSUM}} = 0.95$)}
+  \label{fig:thr3}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+  \centering
+  \includegraphics[scale=.25]{"\homeCOne/img/CV_MA_M2_thr4"}
+  \caption{SR MM CV ($\text{thr}_{\text{CUSUM}} = 1.30$)}
+  \label{fig:thr4}
+\end{minipage}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{.5\textwidth}
+  \centering
+  \includegraphics[scale=.25]{"\homeCOne/img/CV_MA_M2_thr5"}
+  \caption{SR MM CV ($\text{thr}_{\text{CUSUM}} = 1.65$)}
+  \label{fig:thr5}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+  \centering
+  \includegraphics[scale=.25]{"\homeCOne/img/CV_MA_M2_thr6"}
+  \caption{SR MM CV ($\text{thr}_{\text{CUSUM}} = 2.00$)}
+  \label{fig:thr6}
+\end{minipage}
+\end{figure}
+
+\vspace{5cm}
+
+\subsection{Cross-Validation ML based Models}
+The purpose of cross-validation in the ML based models has been 
+different than the ones based in MA. The validation data set has been 
+used as an independent stopping indicator. That is, the neural 
+networks have been trained on the train data set and whenever the loss 
+function value in the validation data set increases, while the train 
+one decreases, the algorithm stops. This way, over fitting is avoided 
+since the neural network was stopped before it became too good a 
+predictor in a certain data set, without delivering the same results 
+in unseen data sets.\\
+
+That said, the threshold for both the primary and secondary model has 
+not been tuned. So a $\hat{y}_i$ will be given a positive value 
+whenever it surpasses 0.5, and negative otherwise.
+
+\section{Results}
+In subsections \ref{sec:ResultsMA} and \ref{sec:ResultsML} a table and 
+some graphs will be shown with the purpose of assessing the 
+out-of-sample performance (Sharpe Ratio \& Drawdown) of the models 
+considered, which are the following:
+
+\begin{itemize}
+	\item \textbf{Buy \& Hold:} Buying the portfolio at the start and 
+	keeping the position until the end of the period.
+	
+	\item \textbf{Primary Model:} Similar as the previous model but it 
+	applies the corresponding side (long/short).
+	
+	\item \textbf{Meta Model:} Combination of the primary model and 
+	the secondary model. The latter is used to filter the trades 
+	from the former.
+\end{itemize}
+
+\subsection{MA based Models}
+\label{sec:ResultsMA}
+Since a huge emphasis has been put to select the threshold that 
+performs best, SR-wise, in the validation set (in-sample), the results 
+of the MA-based model in the validation data set are shown in table 
+\ref{tab:ResultsCV}.\\
+
+As it is seen in table \ref{tab:ResultsCV}, the meta model does not 
+even achieve satisfactory results (beating the SR of B\&H) in the 
+validation model, so one should not expect to see positive results in 
+the Test Dataset. Indeed, in table \ref{tab:ResultsTst}, the results 
+in the test data set show how the meta model is unable to surpass the 
+SR of the B\&H.\\
+
+Besides that, the precision of the primary model is so low (0.51 -
+validation, 0.58 - test) that the meta model has needed to lower the 
+recall considerably in order to achieve better precision results. That 
+leads to a decrease in F1-Score in both data sets.\\
+
+For more information, one can refer to figures 
+\ref{fig:Plots_MA_Validation} through \ref{fig:Drawdown_MA_Test}, 
+where the prices and drawdown of the models have been plotted.
+
+\begin{table}[htbp]
+\caption{Results in validation data set (MA)}
+\label{tab:ResultsCV}
+\centering
+\begin{tabular}{ |C{3cm}|C{3cm}|C{2cm}|C{2cm}|C{2cm}|C{2cm}|}
+	\hline
+	Model 			& Max. Drawdown	& SR			& Precision & Recall 
+	& F1-Score\\
+	\hline
+	Buy \& Hold		&  9.17\% 		&  0.9479	& -		 & - 
+	& -\\  
+	Primary Model 	& 41.36\% 		& -1.3585	& 0.5100 & 1 
+	& 0.6757\\ 
+	Meta Model 		&  4.97\% 		&  0.4504	& 0.6444 & 0.1657
+	& 0.2636\\ 
+	\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\caption{Results in test data set (MA)}
+\label{tab:ResultsTst}
+\centering
+\begin{tabular}{ |C{3cm}|C{3cm}|C{2cm}|C{2cm}|C{2cm}|C{2cm}|}
+	\hline
+	Model 			& Max. Drawdown & SR			& Precision & Recall
+	& F1-Score\\
+	\hline
+	Buy \& Hold		& 15.20\% 		&  0.9682	& - 		 & - 
+	& -\\ 
+	Primary Model 	& 34.41\% 		& -0.7467	& 0.5758 & 1 
+	& 0.7308\\ 
+	Meta Model 		&  5.02\% 		&  0.4887	& 0.6769 & 0.1781
+	& 0.2821\\ 
+	\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/Plots_MA_Validation"}
+	\caption{Returns of MA Models in the Validation Dataset}
+	\label{fig:Plots_MA_Validation}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/Drawdown_MA_Validation"}
+	\caption{Drawdown of MA Models in the Validation Dataset}
+	\label{fig:Drawdown_MA_Validation}	
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/Plots_MA_Test"}
+	\caption{Returns of MA Models in the Test Dataset}
+	\label{fig:Plots_MA_Test}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/Drawdown_MA_Test"}
+	\caption{Drawdown of MA Models in the Test Dataset}
+	\label{fig:Drawdown_MA_Test}
+\end{figure}
+
+\vspace{100cm}
+
+
+\subsection{ML based Models}
+\label{sec:ResultsML}
+Table \ref{tab:ResultsTstML} shows the results of the different models 
+based on ML in the Validation and Test Dataset. Figures 
+\ref{fig:Plots_ML_Test} and \ref{fig:Drawdown_ML_Test} show the prices 
+and drawdown for the different models in the test data set.\\
+
+The immediate thing to point out is that the performance between the 
+primary model and the meta model is indistinguishable. That means that 
+the secondary model has predicted that the primary model was right all 
+of the times. That is attributed to the lack of predictive power of 
+the features of the secondary model. Consequently, the secondary 
+model has decided to ignore the features and always predict a 1 since 
+it is the majority class (it will result in the best naive metrics). 
+Apart from that, in the primary model a similar thing happens since it 
+always predicts to go long.\\
+
+All of this is reflected in the metrics, which fail to change from 
+model to model:
+
+\begin{table}[htbp]
+\caption{Results in Test Dataset (ML)}
+\label{tab:ResultsTstML}
+\centering
+\begin{tabular}{ |C{3cm}|C{3cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}|C{1.8cm}| }
+	\hline
+	Model 			& Max. Drawdown 	& SR			& Precision & Recall 
+	& F1-Score\\
+	\hline
+	Buy \& Hold		& 15.20\% 		&  0.9682	& - 		 & - 
+	& -\\ 
+	Primary Model 	& 16.42\% 		&  0.6630	& 0.6757 & 1 
+	& 0.8065\\ 
+	Meta Model 		& 16.42\% 		&  0.6630	& 0.6758 & 0.9969 
+	& 0.8055\\ 
+	\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/Plots_ML_Test"}
+	\caption{Prices of ML Models in the Test Dataset}
+	\label{fig:Plots_ML_Test}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/Drawdown_ML_Test"}	
+	\caption{Drawdown of ML Models in the Test Dataset}	
+	\label{fig:Drawdown_ML_Test}
+\end{figure}
+
+\vspace{100cm}
+
+\section{Coin flip correction}
+\label{coinFlip} 
+As it has been seen in the previous sections, the performance of the 
+primary model has been sub optimal. In an effort to remove this 
+condition from this work, a strategy has been devised towards 
+achieving better (but artificial) primary models.\\
+
+The idea lays in the concept of a coin flip, $S \sim Be(p)$ 
+($p = \text{Pr}(S = 1)$). Suppose that every observation is linked to 
+a random variable $S_i \sim Be(p)$. Then, one can define a new 
+feature:
+
+\begin{gather*}
+	F_i = (1 - S_i) \cdot y_i - S_i \cdot y_i = 
+	(1 - 2 \cdot S_i) \cdot y_i\\
+	\mathbb{E}[F_i\ |\ y_i] = (1 - 2p) \cdot y_i
+\end{gather*}
+
+where $y_i \in \{-1,\ 1\}$ is the label of the observation in the 
+primary model.\\
+
+Interpreting $p$ as the probability of swapping a feature, the model 
+that defines $S_i \sim Be(0)$ will not swap features and the primary 
+model will be the ``perfect classifier''. On the other hand, if 
+$S_i \sim Be(0.5)$ then $\mathbb{E}[F_i\ |\ y_i] = 0$ and the 
+feature is useless since the feature will alternate (in a random way) 
+between $-1$ and $1$.\\
+
+These artificial models are based on the ML primary model. That is, 
+apart from the \textit{coin flip} feature, it conserves the same 
+features. The probabilities that define the r.v. $S_i$ are:
+
+\begin{equation*}
+	\textbf{p} = [0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 
+	0.40, 0.45, 	0.50]
+\end{equation*}
+
+\subsection{Results}
+
+In figures \ref{fig:coinFlipPlots1}, \ref{fig:coinFlipPlots2} and 
+\ref{fig:coinFlipPlots3} the P\&L plots of the artificial Primary and 
+Meta Model for the Test Dataset are shown.
+
+\begin{figure}[hbtp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/coinFlip/coinFlipPL1"}
+	\caption{Out-of-sample P\&L for 
+	$p \in \{ 0.00, 0.05, 0.10, 0.15\}$}
+	\label{fig:coinFlipPlots1}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/coinFlip/coinFlipPL2"}
+	\caption{Out-of-sample P\&L for 
+	$p \in \{ 0.20, 0.25, 0.30, 0.35\}$}
+	\label{fig:coinFlipPlots2}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/coinFlip/coinFlipPL3"}
+	\caption{Out-of-sample P\&L for $p \in \{ 0.40, 0.45, 0.50 \}$}
+	\label{fig:coinFlipPlots3}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]
+	{"\homeCOne/img/coinFlip/coinFlipModelsSrTest"}
+	\caption{Sharpe Ratio of different coin flip models 
+	(\textit{Out-of-sample})}
+	\label{fig:coinFlipModelsSrTest}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/coinFlip/coinFlipRecall"}
+	\caption{Recall of Coin Flip Models (\textit{Out-of-sample})}
+	\label{fig:coinFlipRecallTest}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]{"\homeCOne/img/coinFlip/coinFlipPrecision"}
+	\caption{Precision of Coin Flip Models (\textit{Out-of-sample})}
+	\label{fig:coinFlipPrecisionTest}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[scale=.5]
+	{"\homeCOne/img/coinFlip/coinFlipF1Score"}
+	\caption{F1 Score of Coin Flip Models (\textit{Out-of-sample})}
+	\label{fig:coinFlipF1ScoreTest}
+\end{figure}
+
+\vspace{100cm}
+
+\section{Conclusions}
+This chapter has explored the novel labeling technique meta-labeling. 
+Beginning from the toy project, it was obvious that the main benefit 
+of meta-labeling, improving the F1-Score, was hard to capture. In 
+fact, the secondary model needed low levels of noise in order to work, 
+besides having a primary model that was not near perfect (i.e., it 
+made mistakes to could be corrected).\\
+
+The conditions were obviously not met in the MA and ML based models. 
+In the former, the primary model predictions were near random with 
+precision of nearly 50\%. That created a really bad model which was 
+hard for the secondary model to correct. Even though it achieved some 
+success in improving the SR, it was unable to beat a B\&H strategy. 
+Apart from that, the ML based models did not have enough data with 
+predictive power, so the results of meta-labeling are inconclusive. In 
+fact, one would dare to say that the models did not ``learn'' anything 
+which is common in systems where the models can not distinguish the 
+signal from the noise. Note that, this did not happen in the MA based 
+model because even tough it was almost random, it did something. In 
+contrast the ML M1 did not have anything to base its predictions on, 
+so it decided to always go long, since it would achieve the ``best'' 
+performance for a naive classifier.\\
+
+However, not everything is unfavorable. By creating better artificial 
+primary models (coin-flip method), the hypothesis in the toy project 
+could be evaluated in a more controlled environment. It can be seen 
+that the SR of the meta model significantly surpasses the one of the 
+primary model whenever the probability of the coin flip is between 0.1 
+and 0.3. That fits with what was concluded in the toy project: M1 not 
+near perfect and low noise-to-signal ratio.\\
+
+All in all, meta-labeling applied to financial data is a tricky tool 
+to use. First of all, a good primary model is required, which by 
+itself is difficult to develop. Furthermore, the features of the 
+secondary model need to have good predicting power so as to detect the 
+signal behind the noise, which in financial data is challenging as 
+well .
+
+\begin{table}[htbp]
+\caption{Tickers of the GMVP portfolio}
+\label{table:tickers}
+\centering
+\begin{tabular}{ |C{2cm}|C{2cm}|C{2cm}|C{2cm}|C{2cm}|C{2cm}|  }
+	\hline
+	MMM & ABT & ABBV & ABMD & ACN & ATVI\\
+	ADBE & AMD & AAP & AES & AFL & A\\
+	APD & AKAM & ALK & ALB & ARE & ALXN\\
+	ALGN & ALLE & LNT & ALL & GOOGL & GOOG\\
+	MO & AMZN & AMCR & AEE & AAL & AEP\\
+	AXP & AIG & AMT & AWK & AMP & ABC\\
+	AME & AMGN & APH & ADI & ANSS & ANTM\\
+	AON & AOS & APA & AIV & AAPL & AMAT\\
+	APTV & ADM & ANET & AJG & AIZ & T\\
+	ATO & ADSK & ADP & AZO & AVB & AVY\\
+	BKR & BLL & BAC & BK & BAX & BDX\\
+	BRK.B & BBY & BIO & BIIB & BLK & BA\\
+	BKNG & BWA & BXP & BSX & BMY & AVGO\\
+	BR & BF.B & CHRW & COG & CDNS & CPB\\
+	COF & CAH & KMX & CCL & CARR & CTLT\\
+	CAT & CBOE & CBRE & CDW & CE & CNC\\
+	CNP & CERN & CF & SCHW & CHTR & CVX\\
+	CMG & CB & CHD & CI & CINF & CTAS\\
+	CSCO & C & CFG & CTXS & CLX & CME\\
+	CMS & KO & CTSH & CL & CMCSA & CMA\\
+	CAG & CXO & COP & ED & STZ & COO\\
+	CPRT & GLW & CTVA & COST & CCI & CSX\\
+	CMI & CVS & DHI & DHR & DRI & DVA\\
+	DE & DAL & XRAY & DVN & DXCM & FANG\\
+	DLR & DFS & DISCA & DISCK & DISH & DG\\
+	DLTR & D & DPZ & DOV & DOW & DTE\\
+	DUK & DRE & DD & DXC & EMN & ETN\\
+	EBAY & ECL & EIX & EW & EA & EMR\\
+	ETR & EOG & EFX & EQIX & EQR & ESS\\
+	EL & ETSY & EVRG & ES & RE & EXC\\
+	EXPE & EXPD & EXR & XOM & FFIV & FB\\
+	FAST & FRT & FDX & FIS & FITB & FE\\
+	FRC & FISV & FLT & FLIR & FLS & FMC\\
+	F & FTNT & FTV & FBHS & FOXA & FOX\\
+	BEN & FCX & GPS & GRMN & IT & GD\\
+	GE & GIS & GM & GPC & GILD & GL\\
+	GPN & GS & GWW & HAL & HBI & HIG\\
+	HAS & HCA & PEAK & HSIC & HSY & HES\\
+	HPE & HLT & HFC & HOLX & HD & HON\\
+	HRL & HST & HPQ & HUM & HBAN & HII\\
+	IEX & IDXX & INFO & ITW & ILMN & INCY\\
+	IR & INTC & ICE & IBM & IP & IPG\\
+	IFF & INTU & ISRG & IVZ & IPGP & IQV\\
+	IRM & JKHY & J & JBHT & SJM & JNJ\\
+	JCI & JPM & JNPR & KSU & K & KEY\\
+	KEYS & KMB & KIM & KMI & KLAC & KHC\\
+	KR & LB & LHX & LH & LRCX & LW\\
+	LVS & LEG & LDOS & LEN & LLY & LNC\\
+	LIN & LYV & LKQ & LMT & L & LOW\\
+	LYB & MTB & MRO & MPC & MKTX & MAR\\
+	MMC & MLM & MAS & MA & MKC & MXIM\\
+	MCD & MCK & MDT & MRK & MET & MTD\\
+	MGM & MCHP & MU & MSFT & MAA & MHK\\
+	\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\caption{Tickers (continued) of the GMVP portfolio}
+\label{table:tickersCont}
+\centering
+\begin{tabular}{ |C{2cm}|C{2cm}|C{2cm}|C{2cm}|C{2cm}|C{2cm}|  }
+	\hline
+	TAP & MDLZ & MNST & MCO & MS & MOS\\
+	MSI & MSCI & MYL & NDAQ & NOV & NTAP\\
+	NFLX & NWL & NEM & NWSA & NWS & NEE\\
+	NLSN & NKE & NI & NSC & NTRS & NOC\\
+	NLOK & NCLH & NRG & NUE & NVDA & NVR\\
+	ORLY & OXY & ODFL & OMC & OKE & ORCL\\
+	OTIS & PCAR & PKG & PH & PAYX & PAYC\\
+	PYPL & PNR & PBCT & PEP & PKI & PRGO\\
+	PFE & PM & PSX & PNW & PXD & PNC\\
+	POOL & PPG & PPL & PFG & PG & PGR\\
+	PLD & PRU & PEG & PSA & PHM & PVH\\
+	QRVO & PWR & QCOM & DGX & RL & RJF\\
+	RTX & O & REG & REGN & RF & RSG\\
+	RMD & RHI & ROK & ROL & ROP & ROST\\
+	RCL & SPGI & CRM & SBAC & SLB & STX\\
+	SEE & SRE & NOW & SHW & SPG & SWKS\\
+	SLG & SNA & SO & LUV & SWK & SBUX\\
+	STT & STE & SYK & SIVB & SYF & SNPS\\
+	SYY & TMUS & TROW & TTWO & TPR & TGT\\
+	TEL & FTI & TDY & TFX & TER & TXN\\
+	TXT & TMO & TIF & TJX & TSCO & TT\\
+	TDG & TRV & TFC & TWTR & TYL & TSN\\
+	UDR & ULTA & USB & UAA & UNP & UAL\\
+	UNH & UPS & URI & UHS & UNM & VFC\\
+	VLO & VAR & VTR & VRSN & VRSK & VZ\\
+	VRTX & V & VNO & VMC & WRB & WAB\\
+	WMT & WBA & DIS & WM & WAT & WEC\\
+	WFC & WELL & WST & WDC & WU & WRK\\
+	WY & WHR & WMB & WLTW & WYNN & XEL\\
+	XRX & XLNX & XYL & YUM & ZBRA & ZBH\\
+	ZION & ZTS & & & & \\
+	\hline
+\end{tabular}
+\end{table}
+
+\bibliography{references}
+% PDFLaTeX + MakeIndex + BibTeX
+
+\end{document}
+ 

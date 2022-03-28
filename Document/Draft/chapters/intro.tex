@@ -1,0 +1,52 @@
+\chapter{Introduction}
+
+Since the main goal of the thesis is to explore several advances of Machine 
+Learning in Finance, three techniques firstly introduced by Marcos López de 
+Prado \cite{AdvFML} have been chosen. The methods are the following:
+
+\begin{enumerate}
+	\item Meta-labeling
+	\item Fractional differentiation
+	\item Data parsing as bars
+\end{enumerate}
+
+While meta-labeling is a finance-specific modification of binary 
+classification, the last two methods deal mostly with data 
+modification/pre-processing. Although the methods are different in essence, 
+the objective is similar. That is, compare the methods to standard 
+techniques so as to determine if they provide an edge to practitioners.\\
+
+When dealing with financial data, where signal-to-noise ratio is low, 
+establishing the validity of the previous statement is not clear. That is 
+why the first two methods have been validated with synthetic data in what 
+will be called ``Toy Projects''. These projects will be extremely important 
+because they will provide a controlled environment where statistical 
+parameters can be tuned to our liking, helping to determine the true 
+performance of the proposed method.
+
+\section{Document overview}
+The work will be structured in the following chapters:
+
+\begin{itemize}
+	\item Chapter \ref{chapterIntroFinDat} will introduce readers to
+	essential financial concepts that will be extremely vital to understand
+	the succeeding chapters.
+	
+	\item Chapter \ref{chapterMetaLabeling} explores the concept of 
+	Meta-labeling via a Toy Project to later apply it to financial data.
+	
+	\item Chapter \ref{chapterFracDiff} will present fractional 
+	differentiation of time series in order to obtain stationary time series 
+	without giving up memory. Again, before applying the method to financial 
+	time series, a Toy Project will be created.
+	
+	\item Chapter \ref{chapterDataParsing} will explain a novel way to 
+	sample high frequency data in finance. Also, it will illustrate how it 
+	can improve forecasts.
+	
+	\item Chapter \ref{chapterConclFutWork} shows the impact these 
+	techniques could have in Finance, analyzes the standing of Machine 
+	Learning in Finance and reflects on future possibilities that could 
+	arise from this work.
+\end{itemize}
+

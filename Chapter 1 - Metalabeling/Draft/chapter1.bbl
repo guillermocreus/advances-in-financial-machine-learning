@@ -1,0 +1,14 @@
+\begin{thebibliography}{1}
+
+\bibitem{AdvFML}
+Marcos~López de~Prado.
+\newblock {\em Advances in Financial Machine Learning}.
+\newblock Wiley, 2018.
+
+\bibitem{imputeFin}
+J.~Liu and D.~P. Palomar.
+\newblock {\em {imputeFin: Imputation of Financial Time Series with Missing
+  Values}}, 2019.
+\newblock R package version 0.1.1.
+
+\end{thebibliography}

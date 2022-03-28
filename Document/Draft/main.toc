@@ -1,0 +1,72 @@
+\babel@toc {english}{}
+\contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}% 
+\contentsline {section}{\numberline {1.1}Document overview}{1}{section.1.1}% 
+\contentsline {chapter}{\numberline {2}Primer in financial data}{2}{chapter.2}% 
+\contentsline {section}{\numberline {2.1}Asset returns}{2}{section.2.1}% 
+\contentsline {section}{\numberline {2.2}Stylized facts}{3}{section.2.2}% 
+\contentsline {section}{\numberline {2.3}Statistical properties}{4}{section.2.3}% 
+\contentsline {section}{\numberline {2.4}Portfolios}{6}{section.2.4}% 
+\contentsline {section}{\numberline {2.5}Long and short positions}{6}{section.2.5}% 
+\contentsline {section}{\numberline {2.6}Financial Metrics}{7}{section.2.6}% 
+\contentsline {section}{\numberline {2.7}High Frequency Data}{8}{section.2.7}% 
+\contentsline {chapter}{\numberline {3}Meta-labeling}{10}{chapter.3}% 
+\contentsline {section}{\numberline {3.1}Introduction}{10}{section.3.1}% 
+\contentsline {section}{\numberline {3.2}Motivation}{10}{section.3.2}% 
+\contentsline {section}{\numberline {3.3}What is meta-labeling?}{11}{section.3.3}% 
+\contentsline {subsection}{\numberline {3.3.1}Binary classification}{12}{subsection.3.3.1}% 
+\contentsline {section}{\numberline {3.4}Toy Project}{13}{section.3.4}% 
+\contentsline {subsection}{\numberline {3.4.1}Data}{13}{subsection.3.4.1}% 
+\contentsline {subsection}{\numberline {3.4.2}Models}{14}{subsection.3.4.2}% 
+\contentsline {subsection}{\numberline {3.4.3}Results}{14}{subsection.3.4.3}% 
+\contentsline {subsubsection}{Example}{14}{section*.16}% 
+\contentsline {subsubsection}{Precision}{16}{section*.20}% 
+\contentsline {subsubsection}{Recall}{16}{section*.22}% 
+\contentsline {subsubsection}{F1-Score}{17}{section*.24}% 
+\contentsline {subsection}{\numberline {3.4.4}Conclusions}{18}{subsection.3.4.4}% 
+\contentsline {section}{\numberline {3.5}Financial Data}{18}{section.3.5}% 
+\contentsline {subsection}{\numberline {3.5.1}Removal of outliers}{19}{subsection.3.5.1}% 
+\contentsline {subsection}{\numberline {3.5.2}Division of Data}{19}{subsection.3.5.2}% 
+\contentsline {section}{\numberline {3.6}Labeling (Triple barrier)}{20}{section.3.6}% 
+\contentsline {subsection}{\numberline {3.6.1}Adaptation when the side is known}{21}{subsection.3.6.1}% 
+\contentsline {section}{\numberline {3.7}Primary Model}{22}{section.3.7}% 
+\contentsline {subsection}{\numberline {3.7.1}MA based Primary Model}{22}{subsection.3.7.1}% 
+\contentsline {subsection}{\numberline {3.7.2}ML based Primary Model}{23}{subsection.3.7.2}% 
+\contentsline {section}{\numberline {3.8}Secondary Model}{23}{section.3.8}% 
+\contentsline {subsection}{\numberline {3.8.1}MA based Secondary Model}{23}{subsection.3.8.1}% 
+\contentsline {subsection}{\numberline {3.8.2}ML based Secondary Model}{24}{subsection.3.8.2}% 
+\contentsline {section}{\numberline {3.9}Hyper-parameter tuning via cross-validation}{25}{section.3.9}% 
+\contentsline {subsection}{\numberline {3.9.1}Cross-Validation MA based Models}{25}{subsection.3.9.1}% 
+\contentsline {subsection}{\numberline {3.9.2}Cross-Validation ML based Models}{28}{subsection.3.9.2}% 
+\contentsline {section}{\numberline {3.10}Results}{28}{section.3.10}% 
+\contentsline {subsection}{\numberline {3.10.1}MA based Models}{28}{subsection.3.10.1}% 
+\contentsline {subsection}{\numberline {3.10.2}ML based Models}{30}{subsection.3.10.2}% 
+\contentsline {section}{\numberline {3.11}Coin flip correction}{30}{section.3.11}% 
+\contentsline {subsection}{\numberline {3.11.1}Results}{31}{subsection.3.11.1}% 
+\contentsline {section}{\numberline {3.12}Conclusions}{34}{section.3.12}% 
+\contentsline {chapter}{\numberline {4}Fractional Differentiation}{35}{chapter.4}% 
+\contentsline {section}{\numberline {4.1}Stationary Time Series}{35}{section.4.1}% 
+\contentsline {subsection}{\numberline {4.1.1}Augmented Dickey-Fuller test}{36}{subsection.4.1.1}% 
+\contentsline {section}{\numberline {4.2}Fractional differentiation}{37}{section.4.2}% 
+\contentsline {subsection}{\numberline {4.2.1}Inverse of differentiation}{39}{subsection.4.2.1}% 
+\contentsline {section}{\numberline {4.3}Toy Project}{40}{section.4.3}% 
+\contentsline {subsection}{\numberline {4.3.1}Synthetic data}{40}{subsection.4.3.1}% 
+\contentsline {subsection}{\numberline {4.3.2}Fractional differentiation of $y_t$}{41}{subsection.4.3.2}% 
+\contentsline {subsection}{\numberline {4.3.3}Models}{42}{subsection.4.3.3}% 
+\contentsline {subsection}{\numberline {4.3.4}Sequential forecasts}{42}{subsection.4.3.4}% 
+\contentsline {subsection}{\numberline {4.3.5}Results}{43}{subsection.4.3.5}% 
+\contentsline {subsection}{\numberline {4.3.6}Conclusions}{43}{subsection.4.3.6}% 
+\contentsline {section}{\numberline {4.4}Financial data}{44}{section.4.4}% 
+\contentsline {subsection}{\numberline {4.4.1}Division Train/Test data sets}{44}{subsection.4.4.1}% 
+\contentsline {section}{\numberline {4.5}Models}{44}{section.4.5}% 
+\contentsline {section}{\numberline {4.6}Data normalization}{45}{section.4.6}% 
+\contentsline {section}{\numberline {4.7}Results}{45}{section.4.7}% 
+\contentsline {section}{\numberline {4.8}Conclusions}{47}{section.4.8}% 
+\contentsline {chapter}{\numberline {5}Data parsing as bars}{48}{chapter.5}% 
+\contentsline {section}{\numberline {5.1}Data bars}{48}{section.5.1}% 
+\contentsline {section}{\numberline {5.2}Data}{49}{section.5.2}% 
+\contentsline {section}{\numberline {5.3}Sampling}{49}{section.5.3}% 
+\contentsline {section}{\numberline {5.4}Normality of log-returns}{52}{section.5.4}% 
+\contentsline {section}{\numberline {5.5}Statistical analysis of bars}{54}{section.5.5}% 
+\contentsline {section}{\numberline {5.6}Results}{54}{section.5.6}% 
+\contentsline {section}{\numberline {5.7}Conclusions}{55}{section.5.7}% 
+\contentsline {chapter}{\numberline {6}Conclusions and future work}{56}{chapter.6}% 

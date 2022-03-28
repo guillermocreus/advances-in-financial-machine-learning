@@ -1,0 +1,280 @@
+---
+title: "MNIST Meta-labeling"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+```{r echo=FALSE, results="hide"}
+library(caret)  # Wrapper for Random Forest
+library(rvest)  # Defines  %>%
+
+# _____ Neural Networks _____
+library(keras)
+library(tensorflow)
+# _______________
+
+library(ROCR)  # ROC plots
+library(ggplot2)
+library(data.table)  # Melting df
+
+setwd("~/Dropbox/HKUST/TFG/Chapter\ 1\ -\ Metalabeling/Code/mnist")
+
+source("utils/utilities.R")
+```
+
+```{r}
+data <- dataset_mnist()
+xTrn <- (data$train$x)/255
+yTrn <- data$train$y
+
+xTst <- (data$test$x)/255
+yTst <- data$test$y
+
+firstNumber <- 3
+secondNumber <- 8
+
+indTrn <- which(yTrn %in% c(firstNumber, secondNumber))
+indTst <- which(yTst %in% c(firstNumber, secondNumber))
+
+xTrn <- xTrn[indTrn, , ]
+yTrn <- yTrn[indTrn]
+
+xTst <- xTst[indTst, , ]
+yTst <- yTst[indTst]
+
+imgRows <- 28
+imgCols <- 28
+
+xTrn <- array_reshape(xTrn, c(nrow(xTrn), imgRows*imgCols))
+xTst <- array_reshape(xTst, c(nrow(xTst), imgRows*imgCols))
+
+aux <- which(yTrn == firstNumber)
+yTrn[] <- 1
+yTrn[aux] <- 0
+
+aux <- which(yTst == firstNumber)
+yTst[] <- 1
+yTst[aux] <- 0
+
+set.seed(1998)
+primaryModel <- keras_model_sequential() %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Input format:
+# x <-> Matrix
+# y <-> vector
+
+primaryModel %>% compile(
+  optimizer = "sgd",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <- primaryModel %>% fit(
+  x = xTrn, 
+  y = yTrn,
+  epochs = 5,
+  batch_size = 320,
+  validation_split = 0.2
+)
+
+# _____ Choosing a threshold _____
+yHatTrn <- as.vector(primaryModel %>% predict(xTrn))
+df <- data.frame("predictions" = yHatTrn,
+                 "labels" = yTrn)
+pred <- prediction(df$predictions, df$labels)
+perf <- performance(pred, "tpr", "fpr")
+par(pty = "s")
+plot(
+  perf,
+  col = "grey40",
+  lwd = 3,
+  main = paste("ROC M1 (Train)")
+)
+# Line with a: intercept, b: slope, lty = line type
+
+abline(a = 0, b = 1, lty = "dotted")  
+# _______________
+
+thresholds <- (0:10)/10
+pointsROC <- matrix(rep(NA, 2*length(thresholds)),
+                    ncol = 2, nrow = length(thresholds))
+
+indGood <- NA
+for (i in length(thresholds):1) {
+  th <- thresholds[i]
+  
+  TP <- sum(yHatTrn > th & yTrn == 1)
+  FN <- sum(yHatTrn <= th & yTrn == 1)
+  FP <- sum(yHatTrn > th & yTrn == 0)
+  TN <- sum(yHatTrn <= th & yTrn == 0)
+  
+  TPR <- TP/(TP + FN)
+  FPR <- FP/(FP + TN)
+  
+  if (TPR > 0.8 & is.na(indGood)) indGood <- i
+  pointsROC[i, ] <- c(FPR, TPR)
+  
+  if (th == 0.3) points(FPR, TPR, pch = 19, col = "red")
+  else points(FPR, TPR, pch = 19, col = "blue")
+}
+
+# _____ Manual adjustment _____
+th <- 0.3
+yHatTrn <- as.numeric(yHatTrn > 0.3)
+yHatTst <- primaryModel %>% predict(xTst)
+yHatTst <- as.numeric(yHatTst > 0.3)
+
+confusionMatrix(data = factor(yHatTrn), 
+                reference = factor(yTrn),
+                positive = "1")
+
+# Sensitivity: Recall
+# Specificity: Recall of the negative class
+# Pos. Pred. Value: Precision
+# Neg. Pred. Value: Precision of the negative class
+# _______________
+
+# _____ Secondary Model _____
+yTrnM2 <- yHatTrn & yTrn
+yTstM2 <- yHatTst & yTst
+
+xTrnM2 <- cbind(xTrn, yHatTrn)
+xTstM2 <- cbind(xTst, yHatTst)
+
+set.seed(1998)
+secondaryModel <- keras_model_sequential() %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+# Input format:
+# x <-> Matrix
+# y <-> vector
+
+secondaryModel %>% compile(
+  optimizer = "sgd",
+  loss = "binary_crossentropy",
+  metrics = c("Recall", "Precision")
+)
+
+history <- secondaryModel %>% fit(
+  x = xTrnM2, 
+  y = yTrnM2,
+  epochs = 5,
+  batch_size = 320,
+  validation_split = 0.2
+)
+
+yHatTrnM2 <- secondaryModel %>% predict_classes(xTrnM2)
+yHatTstM2 <- secondaryModel %>% predict_classes(xTstM2)
+
+yHatTrnMM <- as.numeric(yHatTrnM2 & yHatTrn)
+yHatTstMM <- as.numeric(yHatTstM2 & yHatTst)
+
+
+M1Trn <- confusionMatrix(data = factor(yHatTrn), reference = factor(yTrn),
+                         positive = "1")
+print("Train Primary Model")
+print(M1Trn)
+
+MMTrn <- confusionMatrix(data = factor(yHatTrnMM), reference = factor(yTrn),
+                           positive = "1")
+print("Train Meta Model")
+print(MMTrn)
+
+M1Tst <- confusionMatrix(data = factor(yHatTst), reference = factor(yTst),
+                         positive = "1")
+print("Test Primary Model")
+print(M1Tst)
+
+MMTst <- confusionMatrix(data = factor(yHatTstMM), reference = factor(yTst),
+                         positive = "1")
+print("Test Meta Model")
+print(MMTst)
+
+# _____ Confusion Matrix _____
+
+#                 Reference
+#                 0   1
+# Prediction 0    TN  FN
+#            1    FP  TP
+
+# _______________
+
+# _____ Train _____
+TPR <- MMTrn$table[2, 2]/(MMTrn$table[2, 2] + MMTrn$table[1, 2])
+FPR <- MMTrn$table[2, 1]/(MMTrn$table[2, 1] + MMTrn$table[1, 1])
+analysisPointTrn <- c(FPR, TPR)
+
+yHatTrnCont <- primaryModel %>% predict(xTrn)
+df <- data.frame("predictions" = yHatTrnCont,
+                 "labels" = yTrn)
+pred <- prediction(df$predictions, df$labels)
+perf <- performance(pred, "tpr", "fpr")
+par(pty = "s")
+plot(
+  perf,
+  col = "grey40",
+  lwd = 3,
+  main = paste("ROC M1 (Train)")
+)
+
+th <- 0.3
+
+TP <- sum(as.vector(yHatTrnCont > th) & yTrn == 1)
+FN <- sum(as.vector(yHatTrnCont <= th) & yTrn == 1)
+FP <- sum(as.vector(yHatTrnCont > th) & yTrn == 0)
+TN <- sum(as.vector(yHatTrnCont <= th) & yTrn == 0)
+
+TPR <- TP/(TP + FN)
+FPR <- FP/(FP + TN)
+
+points(FPR, TPR, pch = 19, col = "red")
+
+# Line with a: intercept, b: slope, lty = line type
+abline(a = 0, b = 1, lty = "dotted")  
+points(analysisPointTrn[1], analysisPointTrn[2], pch = 19, col = "green")
+# _______________
+
+# _____ Test _____
+TPR <- MMTst$table[2, 2]/(MMTst$table[2, 2] + MMTst$table[1, 2])
+FPR <- MMTst$table[2, 1]/(MMTst$table[2, 1] + MMTst$table[1, 1])
+analysisPointTst <- c(FPR, TPR)
+
+yHatTstCont <- primaryModel %>% predict(xTst)
+df <- data.frame("predictions" = yHatTstCont,
+                 "labels" = yTst)
+pred <- prediction(df$predictions, df$labels)
+perf <- performance(pred, "tpr", "fpr")
+par(pty = "s")
+plot(
+  perf,
+  col = "grey40",
+  lwd = 3,
+  main = paste("ROC M1 (Test)")
+)
+
+th <- 0.3
+
+TP <- sum(as.vector(yHatTstCont > th) & yTst == 1)
+FN <- sum(as.vector(yHatTstCont <= th) & yTst == 1)
+FP <- sum(as.vector(yHatTstCont > th) & yTst == 0)
+TN <- sum(as.vector(yHatTstCont <= th) & yTst == 0)
+
+TPR <- TP/(TP + FN)
+FPR <- FP/(FP + TN)
+
+points(FPR, TPR, pch = 19, col = "red")
+
+# Line with a: intercept, b: slope, lty = line type
+abline(a = 0, b = 1, lty = "dotted")  
+points(analysisPointTst[1], analysisPointTst[2], pch = 19, col = "green")
+# _______________
+```
+
+```{r}
+
+```

@@ -1,0 +1,501 @@
+---
+title: "Fractional differentiation - Syntethic data (Experiment 1)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      results = "",
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r echo=FALSE, results = "hide"}
+library(ggplot2)  # Fancy plots
+library(reshape2)  # Melting data frame
+library(xts)  # Time series
+library(tseries)  # Augmented Dickey Fuller (ADF) Test
+library(pracma)  # Dividing and multiplying polynomials
+library(dplyr)  # %>%
+library(randomForest)  # Train Random Forests
+
+# _____ NN _____
+library(keras)
+library(tensorflow)
+tensorflow::tf$random$set_seed(1998)
+# _______________
+
+load(file = "~/Dropbox/Otros/clean_returns_GMVP.RData") 
+GMVPPrices <- cumprod(1 + GMVP_returns)
+GMVPLogPrices <- log(GMVPPrices)
+
+source("plots.R")
+source("fracDiffUtils.R")
+```
+
+```{r}
+set.seed(1998)
+x <- rnorm(n = 3000, mean = 0.01, sd = 0.02)
+# plot(x)
+# plot(cumsum(x))
+
+dd <- data.frame(cbind("k" = 1:length(x), "x_t" = x))
+ggplot(dd) +
+  geom_line(aes(x = k, y = x_t), size = 0.35)
+
+dd <- data.frame(cbind("k" = 1:length(x), "y_t" = cumsum(x)))
+ggplot(dd) +
+  geom_line(aes(x = k, y = y_t), size = 1, colour = "gold3")
+
+n <- 3000
+nu <- 10
+mu <- 0.001
+vol <- 0.005*2
+scaler <- sqrt(vol^2/(nu)*(nu - 2))
+
+set.seed(1998)
+x <- mu + scaler*rt(n = n, df = nu)
+x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+y <- cumsum(x)
+
+dd <- data.frame(cbind("k" = 1:length(x), "x_t" = x))
+ggplot(dd) +
+  geom_line(aes(x = k, y = x_t), size = 0.35)
+
+dAll <- seq(from = 0, to = 1, length.out = 11)
+fracDiffAll <- xts()
+for (i in 1:length(dAll)) {
+  d <- dAll[i]
+  th <- 1e-4
+  
+  yDiff <- na.omit(fracDiff_FFD(y, d, th))
+  fracDiffAll <- cbind(fracDiffAll, yDiff)
+}
+
+colnames(fracDiffAll) <- paste("d =", as.character(dAll))
+index(fracDiffAll) <- index(y)
+plotTimeSeries(fracDiffAll)
+
+allD <- seq(from = 0, to = 1, length.out = 21)
+allADFStatistics <- rep(NA, length(allD))
+stationaryTSeries<- rep(FALSE, length(allD))
+for (i in 1:length(allD)) {
+  tSeriesFracDiff_FFD <- na.omit(fracDiff_FFD(y, allD[i], 1e-4))
+  ADFTest <- adf.test(tSeriesFracDiff_FFD)
+  
+  allADFStatistics[i] <- ADFTest$statistic
+  if (ADFTest$p.value <= 0.01) stationaryTSeries[i] <- TRUE
+}
+  
+dataADF <- data.frame(cbind(allD, allADFStatistics, as.factor(stationaryTSeries)))
+ggplot(dataADF, aes(x = allD, y = allADFStatistics)) + 
+  geom_line(colour = "gold2", size = 1) + 
+  geom_point(aes(fill = stationaryTSeries), size = 3, shape = 21, stroke = 0) + 
+  scale_fill_manual(values = c("red2", "green3")) +
+  xlab("d") + ylab("ADF Statistic") +
+  scale_x_continuous(breaks = seq(from = 0, to = 1, length.out = 11)) +
+  ggtitle("ADF Test Statistic as a function of d")
+```
+
+# IID-Samples
+```{r}
+d <- 0.35
+# d <- 0.15
+th <- 1e-4
+nFwd <- 150  # 7 months
+set.seed(1998)
+
+totMeanDiff <- totMeanDiffLM <- totMeanRet <- 0
+
+# allwInverse <- list()
+# for (i in 1:9) {
+#   print(i)
+#   allwInverse[[i]] <- getInverseWeights_FFD(i/10, th, n + nFwd)
+# }
+# 
+# saveRDS(allwInverse, file = "allwInverse.Rds")
+
+wInverse <- getInverseWeights_FFD(d, th, n + nFwd)
+
+nIter <- 50
+for (i in 1:nIter) {
+  # print(paste("Iteracion", i))
+  # x <- mu + scaler*rt(n = n, df = nu)
+  # x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+  # y <- cumsum(x)
+  
+  x <- rnorm(n = n, mean = mu, sd = vol)
+  x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+  y <- cumsum(x)
+  plot(y)
+  
+  # y <- c(0, 0, 0)
+  # for (k in 4:(n + 1)) {
+  #   y <- c(y, 0.5 + 0.3*y[k - 1] + 0.4*y[k - 2] + 0.297*y[k - 3]
+  #            + rnorm(1, mean = 0, sd = 1.5))
+  # }
+  # x <- diff(y)
+  # x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+  # y <- as.xts(y[-1], order.by = index(x))
+  # 
+  # print(adf.test(y))
+  # plot(y)
+  
+  # x <- mu + scaler*rt(n = n, df = nu)
+  # for (i in 1:length(x)) {
+  #   if (mod(i, 100) == 35) {
+  #     x[i:(i + 4)] <- rnorm(5, mean = -30*mu, sd = 0.006)
+  #     x[(i + 5):(i + 14)] <- rnorm(10, mean = 0, sd = 0.003)
+  #     x[(i + 15):(i + 24)] <- rnorm(10, mean = 15*mu, sd = 0.003)
+  #   } 
+  # }
+  # x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+  # y <- cumsum(x)
+
+  yTrn <- y[1:(length(y) - nFwd)]
+  yTst <- y[(length(y) - nFwd + 1):length(y)]
+  
+  yDiffOriginal <- fracDiff_FFD(yTrn, d, th)
+  yDiff <- completeFracDiff_FFD(yTrn, yDiffOriginal, d, th)
+  
+  # _____ Linear Model _____
+  # yLM <- as.vector(yDiff[(length(yDiff) - 21*6*5):length(yDiff)])
+  yLM <- as.vector(yDiff)
+  xLM <- 1:length(yLM)
+  dd <- data.frame(xLM, yLM)
+  linearMod <- lm(yLM~xLM, data = dd)
+  dd <- data.frame("xLM" = (length(xLM) + 1):(length(xLM) + nFwd))
+  yDiffLM <- c(yDiff, as.xts(predict(linearMod, dd), 
+                             order.by = tail(index(yDiff), 1) + 1:nFwd))
+  yIntLM <- inverseFracDiff_FFD(yDiffLM, d, th, w = wInverse)
+  # _______________
+  
+  muDiff <- mean(yDiff[(length(yDiff) - 21*6*5):length(yDiff)])
+  yDiff <- c(yDiff, as.xts(rep(muDiff, nFwd), 
+                           order.by = tail(index(yDiff), 1) + 1:nFwd))
+  
+  yDiffOriginal <- c(yDiffOriginal, 
+                     as.xts(rep(muDiff, nFwd), 
+                            order.by = tail(index(yDiffOriginal), 1) + 1:nFwd))
+  
+  yInt <- inverseFracDiff_FFD(yDiff, d, th, w = wInverse)
+  
+  yDiff2 <- fracDiff(yTrn, 1, 1)
+  muDiff2 <- mean(yDiff2[(length(yDiff2) - 21*6*5):length(yDiff2)])
+  yDiff2 <- c(yDiff2, as.xts(rep(muDiff2, nFwd), 
+                             order.by = tail(index(yDiff2), 1) + 1:nFwd))
+  yInt2 <- cumsum(yDiff2)
+  
+  dd <- cbind("y" = y, "yDiff" = yDiffOriginal, "yInt" = yInt, "yIntLM" = yIntLM, 
+              "yDiff2" = yDiff2, "yInt2" = yInt2)
+  if (i <= 5) print(plotTimeSeries(dd))
+  
+  dd <- cbind("y" = yTst, "yInt" = yInt[index(yTst)], 
+              "yIntLM" = yIntLM[index(yTst)], 
+              "yInt2" = yInt2[index(yTst)])
+  if (i <= 5) print(plotTimeSeries(dd))
+  
+  totMeanDiff <- 1/length(yTst)*sum(abs(yTst - yInt[index(yTst)])^2) + totMeanDiff
+  totMeanDiffLM <- 1/length(yTst)*sum(abs(yTst - yIntLM[index(yTst)])^2) + totMeanDiffLM
+  totMeanRet <- 1/length(yTst)*sum(abs(yTst - yInt2[index(yTst)])^2) + totMeanRet
+}
+
+totMeanDiff <- totMeanDiff/nIter
+totMeanDiffLM <- totMeanDiffLM/nIter
+totMeanRet <- totMeanRet/nIter
+
+print(totMeanDiff)
+print(totMeanDiffLM)
+print(totMeanRet)
+```
+
+# Non-IID Samples (Ver. 1)
+```{r}
+# d <- 0.35
+d <- 0.15
+th <- 1e-4
+nFwd <- 150  # 7 months
+set.seed(1995)
+
+totMeanDiff <- totMeanDiffLM <- totMeanRet <- 0
+
+wInverse <- getInverseWeights_FFD(d, th, n + nFwd)
+
+x <- mu + scaler*rt(n = n, df = nu)
+for (i in 1:length(x)) {
+  if (mod(i, 100) == 35) {
+    x[i:(i + 4)] <- rnorm(5, mean = -30*mu, sd = 0.006)
+    x[(i + 5):(i + 14)] <- rnorm(10, mean = 0, sd = 0.003)
+    x[(i + 15):(i + 24)] <- rnorm(10, mean = 15*mu, sd = 0.003)
+  }
+}
+x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+y <- cumsum(x)
+
+plot(x[1:100])
+print(adf.test(y))
+
+stationaryTSeries[] <- FALSE
+for (i in 1:length(allD)) {
+  tSeriesFracDiff_FFD <- na.omit(fracDiff_FFD(y, allD[i], 1e-4))
+  ADFTest <- adf.test(tSeriesFracDiff_FFD)
+  
+  allADFStatistics[i] <- ADFTest$statistic
+  if (ADFTest$p.value <= 0.01) stationaryTSeries[i] <- TRUE
+}
+  
+dataADF <- data.frame(cbind(allD, allADFStatistics, as.factor(stationaryTSeries)))
+print(ggplot(dataADF, aes(x = allD, y = allADFStatistics)) + 
+        geom_line(colour = "gold2", size = 1) + 
+        geom_point(aes(fill = stationaryTSeries), size = 3, shape = 21, stroke = 0) + 
+        scale_fill_manual(values = c("red2", "green3")) +
+        xlab("d") + ylab("ADF Statistic") +
+        scale_x_continuous(breaks = seq(from = 0, to = 1, length.out = 11)) +
+        ggtitle("ADF Test Statistic as a function of d"))
+      
+nIter <- 50
+for (i in 1:nIter) {
+  x <- mu + scaler*rt(n = n, df = nu)
+  for (k0 in 1:length(x)) {
+    if (mod(k0, 100) == 35) {
+      x[k0:(k0 + 4)] <- rnorm(5, mean = -30*mu, sd = 0.006)
+      x[(k0 + 5):(k0 + 14)] <- rnorm(10, mean = 0, sd = 0.003)
+      x[(k0 + 15):(k0 + 24)] <- rnorm(10, mean = 15*mu, sd = 0.003)
+    }
+  }
+  x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+  y <- cumsum(x)
+
+  yTrn <- y[1:(length(y) - nFwd)]
+  yTst <- y[(length(y) - nFwd + 1):length(y)]
+  
+  yDiffOriginal <- fracDiff_FFD(yTrn, d, th)
+  yDiff <- completeFracDiff_FFD(yTrn, yDiffOriginal, d, th)
+  
+  # _____ Linear Model _____
+  yLM <- as.vector(yDiff[(length(yDiff) - 21*6*5):length(yDiff)])
+  xLM <- 1:length(yLM)
+  dd <- data.frame(xLM, yLM)
+  linearMod <- lm(yLM~xLM, data = dd)
+  dd <- data.frame("xLM" = (length(xLM) + 1):(length(xLM) + nFwd))
+  yDiffLM <- c(yDiff, as.xts(predict(linearMod, dd), 
+                             order.by = tail(index(yDiff), 1) + 1:nFwd))
+  yIntLM <- inverseFracDiff_FFD(yDiffLM, d, th, w = wInverse)
+  # _______________
+  
+  muDiff <- mean(yDiff[(length(yDiff) - 21*6*5):length(yDiff)])
+  yDiff <- c(yDiff, as.xts(rep(muDiff, nFwd), 
+                           order.by = tail(index(yDiff), 1) + 1:nFwd))
+  
+  yDiffOriginal <- c(yDiffOriginal, 
+                     as.xts(rep(muDiff, nFwd), 
+                            order.by = tail(index(yDiffOriginal), 1) + 1:nFwd))
+  
+  yInt <- inverseFracDiff_FFD(yDiff, d, th, w = wInverse)
+  
+  yDiff2 <- fracDiff(yTrn, 1, 1)
+  muDiff2 <- mean(yDiff2[(length(yDiff2) - 21*6*5):length(yDiff2)])
+  yDiff2 <- c(yDiff2, as.xts(rep(muDiff2, nFwd), 
+                             order.by = tail(index(yDiff2), 1) + 1:nFwd))
+  yInt2 <- cumsum(yDiff2)
+  
+  dd <- cbind("y" = y, "yDiff" = yDiffOriginal, "yInt" = yInt, "yIntLM" = yIntLM, 
+              "yDiff2" = yDiff2, "yInt2" = yInt2)
+  if (i <= 5) print(plotTimeSeries(dd))
+  
+  dd <- cbind("y" = yTst, "yInt" = yInt[index(yTst)], 
+              "yIntLM" = yIntLM[index(yTst)], 
+              "yInt2" = yInt2[index(yTst)])
+  if (i <= 5) print(plotTimeSeries(dd))
+  
+  totMeanDiff <- 1/length(yTst)*sum(abs(yTst - yInt[index(yTst)])^2) + totMeanDiff
+  totMeanDiffLM <- 1/length(yTst)*sum(abs(yTst - yIntLM[index(yTst)])^2) + totMeanDiffLM
+  totMeanRet <- 1/length(yTst)*sum(abs(yTst - yInt2[index(yTst)])^2) + totMeanRet
+}
+
+totMeanDiff <- totMeanDiff/nIter
+totMeanDiffLM <- totMeanDiffLM/nIter
+totMeanRet <- totMeanRet/nIter
+
+print(totMeanDiff)
+print(totMeanDiffLM)
+print(totMeanRet)
+```
+
+# Non-IID Samples (Ver. 2)
+````{r}
+n <- 3000
+mu <- 0.01
+vol <- 0.03
+period <- 365*7
+muSin <- mu*sin(mod(1:n, period)/period*2*pi)
+
+set.seed(1995)
+x <- c()
+for (i in 1:length(muSin)) {
+  x <- c(x, mu/3 + rnorm(n = 1, mean = muSin[i], sd = vol*2))
+}
+
+x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+y <- cumsum(x)
+
+dd <- data.frame(cbind("k" = 1:length(x), "x_t" = x))
+ggplot(dd) +
+  geom_line(aes(x = k, y = x_t), size = 0.35)
+
+dAll <- seq(from = 0, to = 1, length.out = 11)
+fracDiffAll <- xts()
+for (i in 1:length(dAll)) {
+  d <- dAll[i]
+  th <- 1e-4
+  
+  yDiff <- na.omit(fracDiff_FFD(y, d, th))
+  print(adf.test(yDiff))
+  fracDiffAll <- cbind(fracDiffAll, yDiff)
+}
+
+colnames(fracDiffAll) <- paste("d =", as.character(dAll))
+index(fracDiffAll) <- index(y)
+plotTimeSeries(fracDiffAll)
+```
+
+```{r}
+d <- 0.5
+th <- 1e-4
+nFwd <- 40
+set.seed(1998)
+
+# wInverse <- getInverseWeights_FFD(d, th, n + nFwd)
+totMeanDiffLM <- totMeanDiffRet <- 0
+
+nIter <- 300
+y2Plot <- xts()
+for (i in 1:nIter) {
+  x <- c()
+  for (k0 in 1:length(muSin)) {
+    x <- c(x, mu/3 + rnorm(n = 1, mean = muSin[k0], sd = vol*2))
+  }
+  
+  x <- as.xts(x, order.by = as.Date("2000-01-01") + 1:n)
+  y <- cumsum(x)
+  y2Plot <- cbind(y2Plot, y)
+  index(y2Plot) <- index(y)
+
+  yTrn <- y[1:(length(y) - nFwd)]
+  yTst <- y[(length(y) - nFwd + 1):length(y)]
+  
+  yDiffOriginal <- fracDiff_FFD(yTrn, d, th)
+  yDiff <- completeFracDiff_FFD(yTrn, yDiffOriginal, d, th)
+  
+  # _____ Linear Model _____
+  yLM <- as.vector(yDiff[(length(yDiff) - 2800):length(yDiff)])
+  xLM <- 1:length(yLM)
+  dd <- data.frame(xLM, yLM)
+  linearMod <- lm(yLM~xLM, data = dd)
+  dd <- data.frame("xLM" = (length(xLM) + 1):(length(xLM) + nFwd))
+  yDiffLM <- c(yDiff, as.xts(predict(linearMod, dd), 
+                             order.by = tail(index(yDiff), 1) + 1:nFwd))
+  yIntLM <- inverseFracDiff_FFD(yDiffLM, d, th, w = wInverse)
+  # _______________
+  
+  yDiffRet <- fracDiff(yTrn, 1, 1)
+  # muDiffRet <- mean(yDiffRet[(length(yDiffRet) - 300):length(yDiffRet)])
+  muDiffRet <- mean(yDiffRet)
+  yDiffRet <- c(yDiffRet, as.xts(rep(muDiffRet, nFwd), 
+                                 order.by = tail(index(yDiffRet), 1) + 1:nFwd))
+  yIntRet <- cumsum(yDiffRet)
+  
+  dd <- cbind("y" = y, 
+              "yIntLM" = yIntLM,
+              "yDiffLM" = yDiffLM,
+              "yDiffRet" = x,
+              "yIntRet" = yIntRet)
+  print(plotTimeSeries(dd))
+  
+  dd <- cbind("y" = yTst, 
+              "yIntLM" = yIntLM[index(yTst)], 
+              "yIntRet" = yIntRet[index(yTst)])
+  print(plotTimeSeries(dd))
+  
+  totMeanDiffLM <- totMeanDiffLM + 1/length(yTst)*sum(
+    abs(yTst - yIntLM[index(yTst)])
+  )
+  totMeanDiffRet <- totMeanDiffRet + 1/length(yTst)*sum(
+    abs(yTst - yIntRet[index(yTst)])
+  ) 
+}
+
+totMeanDiffLM <- totMeanDiffLM/nIter
+totMeanDiffRet <- totMeanDiffRet/nIter
+
+print(totMeanDiffLM)
+print(totMeanDiffRet)
+
+moltenDD <- fortify(y2Plot, melt = TRUE)
+
+print(ggplot(moltenDD, aes(x = Index, y = Value, col = Series)) + 
+        geom_line(alpha = 0.1, show.legend = FALSE) + 
+        scale_color_manual(values = rep("tomato2", nIter)) +
+        xlab(element_blank()) + ylab(element_blank()))
+```
+
+```{r}
+# _____ Returns _____
+allInd <- as.xts(1:length(x), order.by = index(x))
+
+xTrnRet <- allInd[index(yTrn)]
+yTrnRet <- x[index(yTrn)]
+
+rfRet <- randomForest(x = xTrnRet, y = yTrnRet)
+xTstRet <- as.xts(as.numeric(tail(xTrnRet, 1)) + c(10, 20, 30, 40),
+                  order.by = tail(index(xTrnRet), 1) + c(10, 20, 30, 40))
+yTstRet <- x[index(xTstRet)]
+yHatTstRet <- rfRet %>% predict(xTstRet)
+# _______________
+
+# _____ FD _____
+xTrnFD <- allInd[index(yTrn)]
+xTrnFD <- xTrnFD[index(yDiffLM)]
+
+yTrnFD <- yDiffLM[index(yTrn)]
+
+model <- keras_model_sequential() %>%
+  layer_dense(units = 8,
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104)) %>%
+  layer_activation_elu() %>%
+  layer_dense(units = 1,
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104))
+
+model %>%
+  compile(
+    optimizer = keras::optimizer_sgd(0.01, momentum = 0.9),
+    loss = "mse"
+  )
+
+history <- model %>% fit(
+  x = xTrnFD, 
+  y = yTrnFD,
+  epochs = 150,
+  batch_size = 256,
+  validation_split = 0.15,
+  # validation_data = list(xKerasV, yKerasV),
+  verbose = 1
+)
+
+xTstFD <- as.xts(as.numeric(tail(xTrnFD, 1)) + 1*c(1:20),
+                 order.by = tail(index(xTrnFD), 1) + 1*c(1:20))
+yTstFD <- yDiffLM[index(xTstFD)]
+
+yHatTstFD <- model %>% predict(xTstFD)
+plot(yHatTstFD)
+
+yHatTrnFD <- model %>% predict(xTrnFD)
+plot(yHatTrnFD)
+
+plot(model %>% predict(xTrnFD))
+# _______________
+```

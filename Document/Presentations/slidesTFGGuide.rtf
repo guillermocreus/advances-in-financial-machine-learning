@@ -1,0 +1,122 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1504\cocoasubrtf840
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww25320\viewh14600\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\b\fs24 \cf0 Primer in financial data:\
+
+\b0 1) Notation:\
+	Price of an asset \'97> p_t and y_t (modeling)\
+	\
+	Returns \'97> Linear and logarithmic (quickly mention that if R_t \\approx 0 then r_t \\approx R_t.\
+	Everybody has seen returns. In the news, when Apple goes up 2%, that just means that its price \
+	has increased by 2%.\
+\
+	Volume\
+	Dollar volume \'97> Similar to volume but can differentiate price changes\
+\
+2) 
+\b S&P 500 chart:
+\b0 \
+	To introduce you to financial charts, let\'92s present a price and volume one:\
+	
+\b Above 
+\b0 you can see the prices of the S&P 500 for three months\
+	
+\b Below 
+\b0 you can see the daily volume\
+\
+	(Relationship between spikes in volume and drops/surge in price)\
+\
+3) 
+\b Stationary time series 
+\b0 (Be concise)
+\b :
+\b0 \
+	Stationarity means that statistical properties do not change over time. Obviously, when trying to \
+	predict future values, it is crucial to satisfy this property.\
+\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\ri-2319\pardirnatural\partightenfactor0
+\cf0 	As you can see in the figure, the log-price time series presents a positive trend, which is a clear 	indicator of non-stationarity.\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+\cf0 	\
+	To solve that, a transformation using the backshift operator is performed, to compute the log-	returns.\
+\
+4) 
+\b Side of a position:\
+	
+\b0 To invest, one can choose two types of positions: long and short.\
+\
+	Long: One earns money if the stock goes up in price. Example: you buy a stock at 100$ and you \
+	expect to sell it at 120$, earning a 20% return.\
+\
+	Short: On the contrary, on a short position you earn money if the stock goes down in price. The 	concept lays in selling a stock that isn\'92t yours and returning it when the stock goes down in \
+	price. Example: you sell at 100$ and then return the stock when it sits at 60$, earning 40$.\
+\
+5) 
+\b Financial metrics:\
+	
+\b0 Sharpe Ratio: ratio of the expected value of the excess return (over the risk free rate) and the 	standard deviation of the excess return. It represents the reward per unit of risk.\
+	\
+	Drawdown: Relative drop from a historical peak. Example: if at time t the drawdown is 20%, it \
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\tx6818\pardirnatural\partightenfactor0
+\cf0 	just means means that the stock price has dropped 20% from a past peak.\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+\cf0 \
+Attempts (5 min):\
+1) 9:38:00 - 9:44:43\
+2) 9:53:00 - 9:59:11\
+\
+
+\b Meta-labeling:\
+
+\b0 1) What is meta-labeling?\
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6798\tx6803\ri-2320\pardirnatural\partightenfactor0
+\cf0 	Binary classifier: In our case it is understood as a ML model that given some features, it will try to 	determine to which class it belongs (out of two).\
+\
+	Primary model: Binary classifier that determines the side (
+\b long 
+\b0 or 
+\b short
+\b0 ). Two types: MA based and 	ML based\
+\
+	Secondary model: Binary classifier that predicts whether the primary model was right or not.\
+\
+	Meta model: Combination of M1 and M2\
+	Primary model can be thought of as a meta-model where M2 always says that M1 is right.\
+\
+2) Why should meta-labeling be used? **********\
+	- Secondary model can be based on ML, while the primary model can be based on fundamentals, 	thus, avoiding the black box stigma.\
+\
+	- It enables sophisticated strategies by relying on the primary model to decide the side and the 	model secondary for the size (whether to enter or not)\
+\
+	- Avoids overfitting because it lets the meta-model not enter\
+\
+3) Data\
+\
+4) Labeling in financial time series\
+	How does the primary model get the labels?\
+	Horizontal and vertical barriers are set and the label is computed\
+\
+5) Results MA\
+	MA primary model goes long if the 20 day moving average of the prices is below the price, and short 	otherwise.\
+	\
+	- Prices of the strategies\
+	- Drawdown plot (at every instant it plots the relative drop from the past historical peak)\
+\
+	Things to mention:\
+	- The worse max drawdown and Sharpe Ratio is the MA primary model\
+	- The meta-model is able to improve the performance of the primary model but the Sharpe Ratio does 	not surpass the benchmark (Buy & Hold)\
+\
+Attempts (8 min):\
+1) 13:24:00 - 13:34:07 <\'97 10 min\
+
+\b \
+Fractional differentiation:\
+
+\b0 Attempts (6 min):\
+1) 13:56:00 - 14:03:05 <\'97 7 min\
+\
+}

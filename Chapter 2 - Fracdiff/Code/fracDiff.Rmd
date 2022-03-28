@@ -1,0 +1,182 @@
+---
+title: "Fractional differentiation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      results = "",
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r echo=FALSE, results = "hide"}
+library(ggplot2)  # Fancy plots
+library(reshape2)  # Melting data frame
+library(xts)  # Time series
+library(tseries)  # Augmented Dickey Fuller (ADF) Test
+
+source("plots.R")
+
+load(file = "~/Dropbox/Otros/clean_returns_GMVP.RData") 
+GMVPPrices <- cumprod(1 + GMVP_returns)
+GMVPLogPrices <- log(GMVPPrices)
+# GMVPLogPrices <- GMVPLogPrices["2006-01/2010-10"]
+```
+
+# Fractional differentiation coefficients
+```{r}
+getWeights <- function(d, size) {
+  if (size <= 0) {
+    return(NULL)
+  } else if (size == 1) {
+    return(1)
+  } else {
+    w <- 1
+    for (i in 2:size) {
+      k <- i - 1
+      newWeight <- -(d-k+1)/k*as.numeric(tail(w, 1))
+      w <- c(w, newWeight)
+    }
+    return(w)
+  }
+  return(NULL)
+}
+
+plotWeights <- function(dRange, nPlots, size) {
+  dAll <- seq(from = dRange[1], to = dRange[2], length.out = nPlots)
+  allWeights <- data.frame("k" = 0:(size - 1))
+  
+  for (i in 1:length(dAll)) {
+    allWeights <- cbind(allWeights, getWeights(d = dAll[i], size = size)) 
+  }
+  colnames(allWeights) <- c("k", as.character(dAll))
+  
+  dd.m <- melt(allWeights, id.vars = "k")
+  colnames(dd.m)[2] <- "d"
+  
+  g <- ggplot(dd.m, aes(x = k, y = value, col = d)) + 
+    geom_point(aes(colour = d), show.legend = FALSE) +
+    geom_line(aes(col = d)) + 
+    xlab("k") + ylab("w_k") +
+    ggtitle("Weights as a function of d")
+  
+  print(g)
+}
+
+plotWeights(dRange = c(0, 1), nPlots = 5, size = 6)
+plotWeights(dRange = c(1, 2), nPlots = 5, size = 6)
+```
+
+```{r}
+# _____ Values of d _____
+d <- 0.3
+# _______________
+
+fracDiff <- function(tSeries, d, th = 0.01) {
+  fracDiffSeries <- tSeries
+  fracDiffSeries[] <- NA
+  w <- getWeights(d = d, size = length(tSeries))
+  normCumSumW <- cumsum(abs(w))
+  normCumSumW <- normCumSumW/tail(normCumSumW, 1)
+  skip <- normCumSumW < 1 - th
+  for (i in 1:length(tSeries)) {
+    if (!skip[i]) {
+      fracDiffSeries[i] <- as.numeric(sum(tSeries[1:i]*rev(w[1:i])))
+    }
+  }
+  return(na.omit(fracDiffSeries))
+}
+
+w <- getWeights(d = d, size = length(GMVPLogPrices))
+normCumSumW <- cumsum(abs(w))
+normCumSumW <- normCumSumW/tail(normCumSumW, 1)
+dd <- data.frame(cbind("k" = 1:length(normCumSumW), normCumSumW))
+ggplot(dd) +
+  geom_line(aes(x = k, y = normCumSumW), size = 1, colour = "gold2") + 
+  geom_hline(yintercept = 1 - 0.01, linetype = "dotted") +
+  geom_text(aes(x = 0, y = 1 - 0.01, label = "Threshold = 0.01", 
+                hjust = -0.2, vjust = -0.5), colour = "black") +
+  ggtitle("Normalized cumulative sum of weights")
+  
+fracDiffNoWeightLoss <- fracDiff(GMVPLogPrices, d, th = 1)
+tSeries2Plot <- cbind(GMVPLogPrices, fracDiffNoWeightLoss)
+colnames(tSeries2Plot) <- c("logPrices", "fracDiffNoWeightLoss")
+plotTimeSeries(tSeries2Plot, title = "Frac Diff without controlling for weight loss")
+
+fracDiffWeightLoss <- fracDiff(GMVPLogPrices, d)
+tSeries2Plot <- cbind(GMVPLogPrices, fracDiffWeightLoss)
+colnames(tSeries2Plot) <- c("logPrices", "fracDiffWeightLoss")
+plotTimeSeries(tSeries2Plot, title = "Frac Diff controlling for weight loss")
+```
+
+# Fixed-Width Window Fracdiff (FFD)
+```{r}
+getWeights_FFD <- function(d, th) {
+  w <- 1
+  k <- 1
+  while (TRUE) {
+    newWeight <- -(d-k+1)/k*as.numeric(tail(w, 1))
+    if (abs(newWeight) < th) {
+      break
+    } else {
+      w <- c(w, newWeight)
+    }
+    k <- k + 1
+  }
+  return(w)
+}
+
+fracDiff_FFD <- function(tSeries, d, th) {
+  fracDiffSeries <- tSeries
+  fracDiffSeries[] <- NA
+  w <- getWeights_FFD(d, th)
+  
+  if (length(w) > length(tSeries)) return(NA)
+  
+    for (i in length(w):length(tSeries)) {
+    fracDiffSeries[i] <- as.numeric(sum(tSeries[(i - length(w) + 1):i]*rev(w)))
+  }
+  return(fracDiffSeries)
+}
+
+tSeriesFracDiff_FFD <- fracDiff_FFD(GMVPLogPrices, d, 1e-4)
+str(adf.test(na.omit(tSeriesFracDiff_FFD)))
+
+tSeries2Plot <- cbind(GMVPLogPrices, tSeriesFracDiff_FFD)
+plotTimeSeries(tSeries2Plot, 
+               title = "Frac Diff controlling for weight loss (w/ fixed-width window)")
+
+allD <- seq(from = 0, to = 1, length.out = 21)
+allADFStatistics <- rep(NA, length(allD))
+stationaryTSeries<- rep(FALSE, length(allD))
+for (i in 1:length(allD)) {
+  tSeriesFracDiff_FFD <- na.omit(fracDiff_FFD(GMVPLogPrices, allD[i], 1e-4))
+  ADFTest <- adf.test(tSeriesFracDiff_FFD)
+  
+  allADFStatistics[i] <- ADFTest$statistic
+  if (ADFTest$p.value <= 0.01) stationaryTSeries[i] <- TRUE
+}
+  
+dataADF <- data.frame(cbind(allD, allADFStatistics, as.factor(stationaryTSeries)))
+ggplot(dataADF, aes(x = allD, y = allADFStatistics)) + 
+  geom_line(colour = "gold2", size = 1) + 
+  geom_point(aes(fill = stationaryTSeries), size = 3, shape = 21, stroke = 0) + 
+  scale_fill_manual(values = c("red2", "green3")) +
+  xlab("d") + ylab("ADF Statistic") +
+  scale_x_continuous(breaks = seq(from = 0, to = 1, length.out = 11)) +
+  ggtitle("ADF Test Statistic as a function of d")
+```
+
+```{r}
+allD <- seq(from = 0, to = 1, length.out = 11)
+alltSeries2Plot <- GMVPLogPrices
+
+for (i in 1:length(allD)) {
+  tSeriesFracDiff_FFD <- na.omit(fracDiff_FFD(GMVPLogPrices, allD[i], 1e-4))
+  if (i > 1) alltSeries2Plot <- cbind(alltSeries2Plot, tSeriesFracDiff_FFD)
+}
+
+colnames(alltSeries2Plot) <- as.character(allD)
+plotTimeSeries(alltSeries2Plot, title = "FFD")
+```

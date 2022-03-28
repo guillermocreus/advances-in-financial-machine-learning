@@ -1,0 +1,1051 @@
+---
+title: "Metalabeling"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      results = "",
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+# Loading libraries
+```{r echo=FALSE, results = "hide"}
+library(rvest)
+library(stringr)
+library(data.table)
+library(xts)
+library(PerformanceAnalytics)
+library(quantmod)
+library(portfolioBacktest)
+library(TTR)
+library(ggfortify)
+library(ggplot2)
+library(ggpubr)
+library(gridExtra)
+library(reshape2)
+library(randomForest)
+library(caret)
+
+library(CVXR)
+
+setwd("~/Dropbox/meta-labeling\ (w\ Guillermo)/Code/Current")
+
+source("tables.R")
+source("cusum.R")
+source("labels.R")
+source("features.R")
+source("ROC.R")
+source("misc.R")
+source("plots.R")
+
+source("GMVP/primary_model_GMVP.R")
+source("GMVP/secondary_model_GMVP.R")
+source("GMVP/primary_model_ROC.R")
+source("GMVP/auxiliary_functions_GMVP.R")
+source("GMVP/full_returns_GMVP.R")
+source("GMVP/discrete_returns_GMVP.R")
+```
+
+```{r}
+set.seed(1)
+r1 <- rnorm(100, mean = 0.01, sd = 0.02)
+mu_old <- mean(r1)
+sigma_old <- sd(r1)
+mu_old/sigma_old*sqrt(length(r1))
+
+
+mu_new <- sum(r1)/252
+sigma_new <- sd(c(rep(0, 252 - length(r1)), r1))
+mu_new/sigma_new*sqrt(252)
+```
+
+```{r echo=FALSE}
+load(file = "~/Dropbox/Otros/clean_returns_GMVP.RData") 
+GMVP_prices <- cumprod(1 + GMVP_returns)
+GMVP_MA <- SMA(GMVP_prices, n = 20)
+GMVP_signal <- lag(GMVP_prices >= GMVP_MA)
+GMVP_signal[GMVP_signal == 0] <- - 1
+index(GMVP_signal) <- as.Date(index(GMVP_signal))
+
+# HYPERPARAMETERS _________
+tc <- 5*0.01*1e-2  # 5 bps
+window_length <- 20
+holding_time <- 10
+# _________________________
+```
+
+# Primary Model - (ML)
+
+## Features and labels
+```{r echo=FALSE}
+X_primary_model <- get_features_primary_model(GMVP_returns, 
+                                              window_length = 20,
+                                              threshold = 1.5)
+
+call_labels <- get_labels_primary_model(GMVP_returns, 
+                                        X_primary_model,
+                                        window_length = window_length,
+                                        max_time = holding_time)
+ 
+y_primary_model <- call_labels$labels
+realized_returns_primary_model <- call_labels$realized_returns
+
+data_primary_model <- na.omit(cbind(X_primary_model, y_primary_model))
+
+N_split <- as.integer(0.8*nrow(data_primary_model))
+N_split_train <- as.integer(0.8*N_split)
+
+train_data_primary_model <- data_primary_model[1:N_split_train, ]
+validation_data_primary_model <- data_primary_model[(N_split_train + 1):N_split, ]
+test_data_primary_model <- data_primary_model[(N_split + 1):nrow(data_primary_model), ]
+
+train_returns_primary_model <- realized_returns_primary_model[1:N_split_train]
+validation_returns_primary_model <-
+  realized_returns_primary_model[(N_split_train + 1):N_split]
+test_returns_primary_model <- 
+  realized_returns_primary_model[-c(1:N_split)]
+
+set.seed(1998)
+random_forest_primary_model <- train(label~. , train_data_primary_model, 
+                                     method = "rf", importance = TRUE)
+
+importance(random_forest_primary_model$finalModel)
+
+predicted_train <- random_forest_primary_model$finalModel$predicted
+predicted_train <- as.xts(predicted_train,
+                          order.by = index(train_data_primary_model))
+
+predicted_validation <- predict(random_forest_primary_model, 
+                                validation_data_primary_model)
+predicted_validation <- as.xts(predicted_validation,
+                               order.by = as.Date(names(predicted_validation)))
+
+predicted_test <- predict(random_forest_primary_model, test_data_primary_model)
+predicted_test <- as.xts(predicted_test,
+                         order.by = as.Date(names(predicted_test)))
+```
+
+## Parameter tuning (Primary Model)
+```{r echo=FALSE}
+thresholds <- seq(from = 0, to = 1, length.out = 20)
+all_SR_primary_model <- all_num_discrete_returns <- c()
+for (thr in thresholds) {
+  SR <- Sharpe_Ratio_from_predictions(returns = GMVP_returns,
+                                      enter = predicted_validation > thr,
+                                      window_length = window_length,
+                                      max_time = holding_time,
+                                      tc = tc,
+                                      verbose = FALSE)
+    
+  if (length(SR) == 0) SR <- -Inf
+  if (is.na(SR)) SR <- -Inf
+  all_SR_primary_model <- c(all_SR_primary_model, SR)
+  
+  discrete_returns <- get_discrete_returns(returns = GMVP_returns,
+                                           enter = predicted_validation > thr,
+                                           window_length = window_length,
+                                           max_time = holding_time,
+                                           tc = tc)
+  
+  n_disc <- length(discrete_returns)
+  if (length(n_disc) == 0) n_disc <- 0
+  if (is.na(n_disc)) n_disc <- 0
+  all_num_discrete_returns <- c(all_num_discrete_returns, n_disc)
+}
+
+# ________ IGNORE ________
+dd <- round(data.frame(cbind(thresholds, 
+                             all_num_discrete_returns, 
+                             all_SR_primary_model)), 4)
+
+dd$`Enough observations` <- 
+  dd$all_num_discrete_returns > median(all_num_discrete_returns)/2
+
+ggplot(dd, aes(x=thresholds, y=all_SR_primary_model, 
+               color=`Enough observations`)) +
+  geom_point() + xlab("Threshold") + ylab("SR") +
+  ggtitle("SR Primary model (CV)")
+
+dd <- as.matrix(dd)
+iniStr <- ""
+for (i in 1:nrow(dd)) {
+  auxStr <- paste(dd[i, 1], dd[i, 2], dd[i, 3], sep = " & ")
+  auxStr <- paste(auxStr, "\\\\ ", sep = "")
+  iniStr <- paste(iniStr, "\n ", auxStr, sep = "")
+}
+cat(iniStr)
+# _______________________
+
+print(round(data.frame(cbind(thresholds, 
+                             all_num_discrete_returns, 
+                             all_SR_primary_model)), 4))
+
+min_n_ret <- median(all_num_discrete_returns)/2
+ind_reliable <- which(all_num_discrete_returns > min_n_ret)
+all_SR_primary_model <- all_SR_primary_model[ind_reliable]
+
+points_SR <- rank(all_SR_primary_model)
+
+best_thr_m1 <- thresholds[max(which(points_SR == max(points_SR)))]
+
+SR_validation <- all_SR_primary_model[match(best_thr_m1, thresholds)]
+
+SR_test <- Sharpe_Ratio_from_predictions(returns = GMVP_returns,
+                                         enter = (predicted_test > best_thr_m1),
+                                         window_length = window_length,
+                                         max_time = holding_time,
+                                         tc = tc,
+                                         verbose = FALSE)
+
+raw_SR_test <- Sharpe_Ratio_from_predictions(returns = GMVP_returns,
+                                             enter = (predicted_test > -1),
+                                             window_length = window_length,
+                                             max_time = holding_time,
+                                             tc = tc,
+                                             verbose = FALSE)
+
+BH_SR_test <- SharpeRatio.annualized(GMVP_returns[index(test_data_primary_model)])
+BH_SR_test <- as.numeric(BH_SR_test)
+
+BH_SR_validation <- 
+  SharpeRatio.annualized(GMVP_returns[index(validation_data_primary_model)])
+BH_SR_validation <- as.numeric(BH_SR_validation)
+```
+
+## Results Primary Model
+```{r echo=FALSE}
+cat(paste(paste("Sharpe Ratio w/ lowest points (Validation Set) =", 
+                round(SR_validation, 4)),
+          paste("Sharpe Ratio (Validation) - B&H =", 
+                round(BH_SR_validation, 4)),
+          paste("Sharpe Ratio (Test) - B&H =", 
+                round(BH_SR_test, 4)),
+          paste("Sharpe Ratio (Test) - triple barrier =", 
+                round(raw_SR_test, 4)),
+          paste("Sharpe Ratio (Test) - primary model (lowest points) =", 
+                round(SR_test, 4)),
+          sep = "\n"))
+```
+
+# Secondary Model - (ML)
+
+## Features and labels
+```{r echo=FALSE}
+# Features
+
+# Predictions from primary model
+predictions_primary_model <- c(predicted_train,
+                               predicted_validation,
+                               predicted_test)
+
+# Features from returns
+X_secondary_model <- get_features(GMVP_returns, 
+                                  signal = GMVP_signal,
+                                  MA = GMVP_MA)[[1]]
+# Solving UTC problems
+index(X_secondary_model) <- as.Date(index(X_secondary_model))
+
+X_secondary_model <- na.omit(cbind(predictions_primary_model, X_secondary_model))
+
+
+# Labels
+
+y_secondary_model <- get_labels_secondary_model(realized_returns_primary_model,
+                                                predictions_primary_model,
+                                                best_thr_m1)
+
+# Merging Features w/ Labels
+data_secondary_model <- na.omit(cbind(X_secondary_model, y_secondary_model))
+
+# Train, Validation and Test Data
+train_data_secondary_model <- 
+  data_secondary_model[index(train_data_primary_model)]
+
+validation_data_secondary_model <- 
+  data_secondary_model[index(validation_data_primary_model)]
+
+test_data_secondary_model <- 
+  data_secondary_model[index(test_data_primary_model)]
+
+set.seed(1998)
+random_forest_secondary_model <- train(label~. , train_data_secondary_model, 
+                                       method = "rf", importance = TRUE)
+
+importance(random_forest_secondary_model$finalModel)
+
+predicted_validation_m2 <- 
+  predict(random_forest_secondary_model, validation_data_secondary_model)
+predicted_validation_m2 <- 
+  as.xts(predicted_validation_m2, 
+         order.by = as.Date(names(predicted_validation_m2)))
+
+predicted_test_m2 <-
+  predict(random_forest_secondary_model, test_data_secondary_model)
+predicted_test_m2 <- 
+  as.xts(predicted_test_m2,
+         order.by = as.Date(names(predicted_test_m2)))
+```
+
+## Parameter tuning (Meta Model)
+```{r echo=FALSE}
+thresholds <- seq(from = 0, to = 1, length.out = 20)
+all_SR_secondary_model <- all_num_discrete_returns <- c()
+for (thr in thresholds) {
+  enter_decision <- enter_decision_2_models(predicted_validation, 
+                                            predicted_validation_m2,
+                                            best_thr_m1,
+                                            thr)
+  
+  SR <- Sharpe_Ratio_from_predictions(returns = GMVP_returns,
+                                      enter = enter_decision,
+                                      window_length = window_length,
+                                      max_time = holding_time,
+                                      tc = tc,
+                                      threshold = thr,
+                                      verbose = FALSE)
+  
+  if (length(SR) == 0) SR <- -Inf
+  all_SR_secondary_model <- c(all_SR_secondary_model, SR)
+  
+  discrete_returns <- get_discrete_returns(returns = GMVP_returns,
+                                           enter = enter_decision,
+                                           window_length = window_length,
+                                           max_time = holding_time,
+                                           tc = tc)
+  
+  n_disc <- length(discrete_returns)
+  if (length(n_disc) == 0) n_disc <- 0
+  if (is.na(n_disc)) n_disc <- 0
+  all_num_discrete_returns <- c(all_num_discrete_returns, n_disc)
+}
+
+# ________ IGNORE ________
+dd <- round(data.frame(cbind(thresholds, 
+                             all_num_discrete_returns, 
+                             all_SR_secondary_model)), 4)
+
+dd$`Enough observations` <- 
+  dd$all_num_discrete_returns > median(all_num_discrete_returns)/2
+
+ggplot(dd, aes(x=thresholds, y=all_SR_secondary_model, 
+               color=`Enough observations`)) +
+  geom_point() + xlab("Threshold") + ylab("SR") +
+  ggtitle("SR Secondary model (CV)")
+
+dd <- as.matrix(dd)
+iniStr <- ""
+for (i in 1:nrow(dd)) {
+  auxStr <- paste(dd[i, 1], dd[i, 2], dd[i, 3], sep = " & ")
+  auxStr <- paste(auxStr, "\\\\ ", sep = "")
+  iniStr <- paste(iniStr, "\n ", auxStr, sep = "")
+}
+cat(iniStr)
+# _______________________
+
+print(round(data.frame(cbind(thresholds, 
+                             all_num_discrete_returns, 
+                             all_SR_secondary_model)), 4))
+
+min_n_ret <- median(all_num_discrete_returns)/2
+ind_reliable <- which(all_num_discrete_returns > min_n_ret)
+all_SR_secondary_model <- all_SR_secondary_model[ind_reliable]
+
+points_SR <- rank(all_SR_secondary_model)
+
+best_thr_m2 <- thresholds[max(which(points_SR == max(points_SR)))]
+# Sharpe Ratios
+
+SR_validation_m2 <- all_SR_secondary_model[match(best_thr_m2, thresholds)]
+
+enter_decision <- enter_decision_2_models(predicted_test, 
+                                          predicted_test_m2,
+                                          best_thr_m1,
+                                          best_thr_m2)
+
+SR_test_m2 <- Sharpe_Ratio_from_predictions(returns = GMVP_returns,
+                                            enter = enter_decision,
+                                            window_length = window_length,
+                                            max_time = holding_time,
+                                            tc = tc,
+                                            verbose = FALSE)
+
+Sharpe_Ratio_from_predictions(returns = GMVP_returns,
+                              enter = (predicted_validation > -1),
+                              window_length = window_length,
+                              max_time = holding_time,
+                              tc = tc,
+                              verbose = FALSE)
+```
+
+## Results Meta model
+```{r echo=FALSE}
+cat(paste(paste("Sharpe Ratio (Validation) - secondary model =", 
+                round(SR_validation_m2, 4)),
+          paste("Sharpe Ratio (Validation) - B&H =", 
+                round(BH_SR_validation, 4)),
+          paste("Sharpe Ratio (Test) - B&H =", 
+                round(BH_SR_test, 4)),
+          paste("Sharpe Ratio (Test) - triple barrier =", 
+                round(raw_SR_test, 4)),
+          paste("Sharpe Ratio (Test) - primary model (lowest points) =",
+                round(SR_test, 4)),
+          paste("Sharpe Ratio (Test) - secondary model (lowest points) =",
+                round(SR_test_m2, 4)),
+          sep = "\n"))
+```
+
+## Plots Meta model
+## Validation Set
+```{r echo=FALSE}
+full_returns_3b <- get_full_returns(returns = GMVP_returns, 
+                                    enter = predicted_validation > -1,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+full_returns_m1 <- get_full_returns(returns = GMVP_returns, 
+                                    enter = predicted_validation > best_thr_m1,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+enter_decision <- enter_decision_2_models(predicted_validation, 
+                                          predicted_validation_m2,
+                                          best_thr_m1,
+                                          best_thr_m2)
+index(enter_decision) <- as.Date(index(enter_decision))
+
+full_returns_m2 <- get_full_returns(returns = GMVP_returns, 
+                                    enter = enter_decision,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+start_t1 <- match(index(validation_data_secondary_model)[1], 
+                  index(GMVP_returns))
+end_t1 <- match(tail(index(validation_data_secondary_model), 1), 
+                index(GMVP_returns))
+
+baseCase <- zeroCase <- GMVP_returns[start_t1:end_t1]
+zeroCase[] <- 0
+ret2Graph_3b <- ret2Graph_m1 <- ret2Graph_m2 <- zeroCase
+
+p2_1 <- plot_portfolios(cumprod(1 + baseCase),
+                        title = "GMVP (Validation)", 
+                        show_legend = FALSE)
+
+ret2Graph_3b[index(full_returns_3b)] <- full_returns_3b
+
+p2_2 <- plot_portfolios(cumprod(1 + ret2Graph_3b), 
+                        title = "Triple Barrier (Validation)", 
+                        show_legend = FALSE)
+
+ret2Graph_m1[index(full_returns_m1)] <- full_returns_m1
+
+p2_3 <- plot_portfolios(cumprod(1 + ret2Graph_m1), 
+                        title = "Primary Model (Validation)", 
+                        show_legend = FALSE)
+
+ret2Graph_m2[index(full_returns_m2)] <- full_returns_m2
+
+p2_4 <- plot_portfolios(cumprod(1 + ret2Graph_m2), 
+                        title = "Meta Model (Validation)", 
+                        show_legend = FALSE)
+
+grid.arrange(p2_1, p2_2,
+             p2_3, p2_4,
+             nrow = 2, ncol = 2)
+
+ret_all_valid <- cbind(baseCase,
+                       ret2Graph_3b,
+                       ret2Graph_m1,
+                       ret2Graph_m2)
+colnames(ret_all_valid) <- c("GMVP", "Triple Barrier",
+                             "Primary Model", "Meta Model")
+```
+
+## Test Set
+```{r echo=FALSE}
+full_returns_3b <- get_full_returns(returns = GMVP_returns, 
+                                    enter = predicted_test > -1,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+full_returns_m1 <- get_full_returns(returns = GMVP_returns, 
+                                    enter = predicted_test > best_thr_m1,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+enter_decision <- enter_decision_2_models(predicted_test, 
+                                          predicted_test_m2,
+                                          best_thr_m1,
+                                          best_thr_m2)
+index(enter_decision) <- as.Date(index(enter_decision))
+
+full_returns_m2 <- get_full_returns(returns = GMVP_returns, 
+                                    enter = enter_decision,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+start_t1 <- match(index(test_data_secondary_model)[1], index(GMVP_returns))
+end_t1 <- match(tail(index(test_data_secondary_model), 1), index(GMVP_returns))
+
+baseCase <- zeroCase <- GMVP_returns[start_t1:end_t1]
+zeroCase[] <- 0
+ret2Graph_3b <- ret2Graph_m1 <- ret2Graph_m2 <- zeroCase
+
+p2_1 <- plot_portfolios(cumprod(1 + baseCase),
+                        title = "GMVP (Test)", show_legend = FALSE)
+
+ret2Graph_3b[index(full_returns_3b)] <- full_returns_3b
+
+p2_2 <- plot_portfolios(cumprod(1 + ret2Graph_3b), 
+                        title = "Triple Barrier (Test)", show_legend = FALSE)
+
+ret2Graph_m1[index(full_returns_m1)] <- full_returns_m1
+
+p2_3 <- plot_portfolios(cumprod(1 + ret2Graph_m1), 
+                        title = "Primary Model (Test)", show_legend = FALSE)
+
+ret2Graph_m2[index(full_returns_m2)] <- full_returns_m2
+
+p2_4 <- plot_portfolios(cumprod(1 + ret2Graph_m2), 
+                        title = "Meta Model (Test)", show_legend = FALSE)
+
+grid.arrange(p2_1, p2_2,
+             p2_3, p2_4,
+             nrow = 2, ncol = 2)
+
+ret_all_tst <- cbind(baseCase,
+                     ret2Graph_3b,
+                     ret2Graph_m1,
+                     ret2Graph_m2)
+colnames(ret_all_tst) <- c("GMVP", "Triple Barrier",
+                           "Primary Model", "Meta Model")
+
+chart.Drawdown(ret_all_tst, main = "Drawdown of Models (out-of-sample)", 
+               legend.loc = "bottomleft", colorset = rainbow6equal)
+```
+
+## ROC
+```{r echo=FALSE}
+aux_signal <- GMVP_signal
+aux_signal[] <- 1
+
+ROC_train <- ROC_validation <- ROC_test <- data.frame("FPR" = c(), "TPR" = c())
+thresholds <- seq(from = 0, to = 1, length.out = 20)
+
+
+enter_decision <- enter_decision_2_models(predicted_test, 
+                                          predicted_test_m2,
+                                          best_thr_m1,
+                                          -1)
+
+discrete_returns <- get_discrete_returns(returns = GMVP_returns,
+                                         enter = enter_decision,
+                                         window_length = window_length,
+                                         max_time = holding_time,
+                                         tc = tc)
+
+enter_decision_v <- enter_decision_2_models(predicted_validation, 
+                                            predicted_validation_m2,
+                                            best_thr_m1,
+                                            -1)
+
+discrete_returns_v <- get_discrete_returns(returns = GMVP_returns,
+                                           enter = enter_decision_v,
+                                           window_length = window_length,
+                                           max_time = holding_time,
+                                           tc = tc)
+
+for (i in 1:length(thresholds)) {
+
+  new_point <- get_TPR_and_FPR(aux_signal, discrete_returns, 
+                               predicted_test_m2, thresholds[i])
+  
+  new_point <- c(new_point$FPR, new_point$TPR)
+  
+  ROC_test <- rbind(ROC_test, new_point)
+  
+  new_point <- get_TPR_and_FPR(aux_signal, discrete_returns_v, 
+                               predicted_validation_m2, thresholds[i])
+  
+  new_point <- c(new_point$FPR, new_point$TPR)
+  
+  ROC_validation <- rbind(ROC_validation, new_point)
+}
+
+# colnames(ROC_train) <- colnames(ROC_test) <- c("FPR", "TPR")
+colnames(ROC_test) <- c("FPR", "TPR")
+colnames(ROC_validation) <- c("FPR", "TPR")
+type_portfolio <- "GMVP"
+
+print(ggplot(ROC_validation, mapping = aes(x = FPR, y = TPR, color = "Validation")) +
+        geom_line(size = 1.5, alpha = 0.7) +
+        geom_line(ROC_test, mapping = aes(x = FPR, y = TPR, color = "Test"), 
+                  size = 1.5, alpha = 0.7) +
+        geom_line(mapping = aes(x = seq(0, 1, length.out = 20), 
+                                y = seq(0, 1, length.out = 20), 
+                                color = "Random"),
+                  linetype = "dotted") +
+        labs(title = paste("ROC curve", type_portfolio, "portfolio"), 
+             x = "False Positive Rate", 
+             y = "True Positive Rate") + 
+        scale_color_manual(name = "", 
+                           values = c("Validation" = "skyblue2", 
+                                      "Test" = "olivedrab2", 
+                                      "Random" = "black")))
+
+
+
+
+```
+
+# Primary Model - (MA)
+
+# Secondary Model - (MA)
+
+## Features and labels
+```{r echo=FALSE}
+# Features
+
+# Features from returns
+X_secondary_model <- get_features(GMVP_returns, 
+                                  signal = GMVP_signal,
+                                  MA = GMVP_MA)[[1]]
+# Solving UTC problems
+index(X_secondary_model) <- as.Date(index(X_secondary_model))
+
+
+# Labels
+thr_prueba_m1 <- seq(0.25, 2, length.out = 6)
+call_labels <- get_labels(GMVP_returns, 
+                          max_time = holding_time, 
+                          tc = tc,
+                          threshold = thr_prueba_m1[3],
+                          ptsl = c(2, 2), 
+                          signal = GMVP_signal)
+
+y_secondary_model <- call_labels$label[[1]]
+colnames(y_secondary_model) <- "label"
+
+returns_secondary_model <- call_labels$realized_returns[[1]]
+exit_secondary_model <- call_labels$exit[[1]]
+
+# Merging Features w/ Labels
+data_secondary_model <- na.omit(cbind(X_secondary_model, y_secondary_model))
+
+N_split <- as.integer(0.8*nrow(data_secondary_model))
+N_split_train <- as.integer(0.8*N_split)
+N_total <- nrow(data_secondary_model)
+
+# Train, Validation and Test Data
+train_data_secondary_model <- data_secondary_model[1:N_split_train, ]
+validation_data_secondary_model <- data_secondary_model[(N_split_train + 1):N_split, ]
+test_data_secondary_model <- data_secondary_model[(N_split + 1):N_total, ]
+
+train_returns_secondary_model <- 
+  returns_secondary_model[index(train_data_secondary_model)]
+train_exit_secondary_model <- 
+  exit_secondary_model[index(train_data_secondary_model)]
+
+validation_returns_secondary_model <- 
+  returns_secondary_model[index(validation_data_secondary_model)]
+validation_exit_secondary_model <- 
+  exit_secondary_model[index(validation_data_secondary_model)]
+
+test_returns_secondary_model <- 
+  returns_secondary_model[index(test_data_secondary_model)]
+test_exit_secondary_model <- 
+  exit_secondary_model[index(test_data_secondary_model)]
+
+# Training Random Forest
+set.seed(1998)
+random_forest_secondary_model <- randomForest(label~. , train_data_secondary_model, 
+                                              importance = TRUE)
+
+importance(random_forest_secondary_model)
+
+predicted_train_m2 <- 
+  random_forest_secondary_model$predicted
+predicted_train_m2 <- 
+  as.xts(predicted_train_m2, 
+         order.by = index(train_data_secondary_model))
+
+predicted_validation_m2 <- 
+  predict(random_forest_secondary_model, validation_data_secondary_model)
+predicted_validation_m2 <- 
+  as.xts(predicted_validation_m2, 
+         order.by = as.Date(names(predicted_validation_m2)))
+
+predicted_test_m2 <-
+  predict(random_forest_secondary_model, test_data_secondary_model)
+predicted_test_m2 <- 
+  as.xts(predicted_test_m2,
+         order.by = as.Date(names(predicted_test_m2)))
+
+
+
+# _____ To delete _____
+
+predicted_test_m1 <- GMVP_signal[index(predicted_test_m2)]
+predicted_test_mm <- predicted_test_m1*round(predicted_test_m2)
+
+yM1Tst <- (
+  realized_returns_primary_model[index(predicted_test_m2)]*predicted_test_m1
+  ) > 0
+
+# _____ M1 _____
+
+TP <- sum(yM1Tst)
+FP <- sum(yM1Tst == 0)
+TN <- 0
+FN <- 0
+
+recall <- TP/(TP + FN)
+precision <- TP/(TP + FP)
+f1Score <- 2/(1/recall + 1/precision)
+
+# _______________
+
+# _____ MM _____
+
+TP <- sum(predicted_test_mm != 0 & yM1Tst == 1)
+FP <- sum(predicted_test_mm != 0 & yM1Tst == 0)
+TN <- sum(predicted_test_mm == 0 & yM1Tst == 0)
+FN <- sum(predicted_test_mm == 0 & yM1Tst == 1)
+
+recall <- TP/(TP + FN)
+precision <- TP/(TP + FP)
+f1Score <- 2/(1/recall + 1/precision)
+
+# _______________
+# _______________
+
+predicted_val_m1 <- GMVP_signal[index(predicted_validation_m2)]
+predicted_val_mm <- predicted_val_m1*round(predicted_validation_m2)
+
+yM1Val <- (
+  realized_returns_primary_model[index(predicted_validation_m2)]*predicted_val_m1
+  ) > 0
+
+# _____ M1 _____
+
+TP <- sum(yM1Val)
+FP <- sum(yM1Val == 0)
+TN <- 0
+FN <- 0
+
+recall <- TP/(TP + FN)
+precision <- TP/(TP + FP)
+f1Score <- 2/(1/recall + 1/precision)
+
+# _______________
+
+# _____ MM _____
+
+TP <- sum(predicted_val_mm != 0 & yM1Val == 1)
+FP <- sum(predicted_val_mm != 0 & yM1Val == 0)
+TN <- sum(predicted_val_mm == 0 & yM1Val == 0)
+FN <- sum(predicted_val_mm == 0 & yM1Val == 1)
+
+recall <- TP/(TP + FN)
+precision <- TP/(TP + FP)
+f1Score <- 2/(1/recall + 1/precision)
+
+# _______________
+# _______________
+```
+
+## Parameter tuning (Meta Model)
+```{r echo=FALSE}
+thresholds <- seq(from = 0, to = 1, length.out = 20)
+all_SR_secondary_model <- all_num_discrete_returns <- c()
+realized_vol <- get_daily_vol(GMVP_returns, window_length)
+start_candidates <- get_start_position(GMVP_returns, 
+                                       threshold = thr_prueba_m1[3], 
+                                       realized_vol)
+
+start_candidates_validation <- 
+  start_candidates[index(validation_data_secondary_model)]
+for (thr in thresholds) {
+  thr_candidates <- start_candidates_validation*(predicted_validation_m2 > thr)
+  
+  call_returns <- get_touch_individual(GMVP_returns, 
+                                       start_candidates = thr_candidates,
+                                       signal = GMVP_signal,
+                                       holding_time = holding_time, 
+                                       realized_vol = realized_vol,
+                                       tc = tc)
+  
+  complete_returns <- call_returns$filtered_returns
+  discrete_returns <- call_returns$real_returns  # 99
+  
+  SR <- SR_strategy(complete_returns)
+  
+  if (length(SR) == 0) SR <- -Inf
+  if (is.na(SR)) SR <- -Inf
+  all_SR_secondary_model <- c(all_SR_secondary_model, SR)
+  
+  n_disc <- length(discrete_returns)
+  if (length(n_disc) == 0) n_disc <- 0
+  if (is.na(n_disc)) n_disc <- 0
+  all_num_discrete_returns <- c(all_num_discrete_returns, n_disc)
+}
+
+# ________ IGNORE ________
+dd <- round(data.frame(cbind(thresholds, 
+                             all_num_discrete_returns, 
+                             all_SR_secondary_model)), 4)
+
+dd$`Enough observations` <- 
+  dd$all_num_discrete_returns > median(all_num_discrete_returns)/2
+
+ggplot(dd, aes(x=thresholds, y=all_SR_secondary_model, 
+               color=`Enough observations`)) +
+  geom_point() + xlab("Threshold") + ylab("SR") +
+  ggtitle("SR Secondary model (CV) - thr_CUSUM = 0.95")
+
+dd <- as.matrix(dd)
+iniStr <- ""
+for (i in 1:nrow(dd)) {
+  auxStr <- paste(dd[i, 1], dd[i, 2], dd[i, 3], sep = " & ")
+  auxStr <- paste(auxStr, "\\\\ ", sep = "")
+  iniStr <- paste(iniStr, "\n", auxStr, sep = "")
+}
+cat(iniStr)
+# _______________________
+
+print(round(data.frame(cbind(thresholds, 
+                             all_num_discrete_returns, 
+                             all_SR_secondary_model)), 4))
+
+min_n_ret <- median(all_num_discrete_returns)/2
+ind_reliable <- which(all_num_discrete_returns > min_n_ret)
+reliable_SR_secondary_model <- all_SR_secondary_model[ind_reliable]
+
+points_SR <- rank(reliable_SR_secondary_model)
+SR_validation_m2 <- 
+  reliable_SR_secondary_model[max(which(points_SR == max(points_SR)))]
+
+best_thr_m2 <- thresholds[match(SR_validation_m2, all_SR_secondary_model)]
+
+# Sharpe Ratios
+
+# Start candidates
+start_candidates_validation_m1 <- 
+  start_candidates_validation*(predicted_validation_m2 > -1)
+start_candidates_validation_m2 <- 
+  start_candidates_validation*(predicted_validation_m2 > best_thr_m2)
+
+start_candidates_test <- start_candidates[index(test_data_secondary_model)]
+start_candidates_test_m1 <- start_candidates_test*(predicted_test_m2 > -1)
+start_candidates_test_m2 <- start_candidates_test*(predicted_test_m2 > best_thr_m2)
+
+# ____________________
+
+call_returns <- get_touch_individual(GMVP_returns, 
+                                     start_candidates = start_candidates_test_m1,
+                                     signal = NULL,
+                                     holding_time = holding_time, 
+                                     realized_vol = realized_vol,
+                                     tc = tc)
+
+complete_returns <- call_returns$filtered_returns
+  
+raw_SR_test <- SR_strategy(complete_returns)
+
+call_returns <- get_touch_individual(GMVP_returns, 
+                                     start_candidates = start_candidates_test_m1,
+                                     signal = GMVP_signal,
+                                     holding_time = holding_time, 
+                                     realized_vol = realized_vol,
+                                     tc = tc)
+
+complete_returns <- call_returns$filtered_returns
+  
+SR_test_m1 <- SR_strategy(complete_returns)
+
+call_returns <- get_touch_individual(GMVP_returns, 
+                                     start_candidates = start_candidates_test_m2,
+                                     signal = GMVP_signal,
+                                     holding_time = holding_time, 
+                                     realized_vol = realized_vol,
+                                     tc = tc)
+
+complete_returns <- call_returns$filtered_returns
+  
+SR_test_m2 <- SR_strategy(complete_returns)
+```
+
+## Results Meta model
+```{r echo=FALSE}
+cat(paste(paste("Sharpe Ratio w/ lowest points (Validation Set) =", 
+                round(SR_validation_m2, 4)),
+          paste("Sharpe Ratio (Validation) - B&H =", 
+                round(BH_SR_validation, 4)),
+          paste("Sharpe Ratio (Test) - B&H =", 
+                round(BH_SR_test, 4)),
+          paste("Sharpe Ratio (Test) - triple barrier =", 
+                round(raw_SR_test, 4)),
+          paste("Sharpe Ratio (Test) - primary model (lowest points) =",
+                round(SR_test_m1, 4)),
+          paste("Sharpe Ratio (Test) - secondary model (lowest points) =",
+                round(SR_test_m2, 4)),
+          sep = "\n"))
+```
+
+## Plots Meta model
+## Validation Set
+```{r echo=FALSE}
+GMVP_touch_3b <-
+  get_touch_individual(GMVP_returns, 
+                       start_candidates = start_candidates_validation_m1,
+                       signal = NULL,
+                       holding_time = holding_time, 
+                       realized_vol = realized_vol,
+                       tc = tc)
+
+GMVP_touch_m1 <-
+  get_touch_individual(GMVP_returns, 
+                       start_candidates = start_candidates_validation_m1,
+                       signal = GMVP_signal,
+                       holding_time = holding_time, 
+                       realized_vol = realized_vol,
+                       tc = tc)
+
+SR_strategy(GMVP_touch_m1$filtered_returns)
+tail(cumprod(1 + GMVP_touch_m1$filtered_returns), 1)
+
+GMVP_touch_m2 <-
+  get_touch_individual(GMVP_returns, 
+                       start_candidates = start_candidates_validation_m2,
+                       signal = GMVP_signal,
+                       tc = tc,
+                       holding_time = holding_time, 
+                       realized_vol = realized_vol)
+
+
+start_t1 <- match(index(validation_data_secondary_model)[1], 
+                  index(GMVP_returns))
+end_t1 <- match(tail(index(validation_data_secondary_model), 1), 
+                index(GMVP_returns))
+
+baseCase <- zeroCase <- GMVP_returns[start_t1:end_t1]
+zeroCase[] <- 0
+ret2Graph_3b <- ret2Graph_m1 <- ret2Graph_m2 <- zeroCase
+
+p2_1 <- plot_portfolios(cumprod(1 + baseCase),
+                        title = "GMVP (Validation)", show_legend = FALSE)
+
+ret2Graph_3b[index(GMVP_touch_3b$filtered_returns)] <- 
+  GMVP_touch_3b$filtered_returns
+
+p2_2 <- plot_portfolios(cumprod(1 + ret2Graph_3b), 
+                        title = "Triple Barrier (Validation)", 
+                        show_legend = FALSE)
+
+ret2Graph_m1[index(GMVP_touch_m1$filtered_returns)] <- 
+  GMVP_touch_m1$filtered_returns
+
+p2_3 <- plot_portfolios(cumprod(1 + ret2Graph_m1), 
+                        title = "Primary Model (Validation)", 
+                        show_legend = FALSE)
+
+ret2Graph_m2[index(GMVP_touch_m2$filtered_returns)] <- 
+  GMVP_touch_m2$filtered_returns
+
+p2_4 <- plot_portfolios(cumprod(1 + ret2Graph_m2), 
+                        title = "Meta Model (Validation)", show_legend = FALSE)
+
+grid.arrange(p2_1, p2_2,
+             p2_3, p2_4,
+             nrow = 2, ncol = 2)
+
+
+ret_all_valid <- cbind(baseCase,
+                       ret2Graph_3b,
+                       ret2Graph_m1,
+                       ret2Graph_m2)
+colnames(ret_all_valid) <- c("GMVP", "Triple Barrier",
+                             "Primary Model", "Meta Model")
+
+chart.Drawdown(ret_all_valid, main = "Drawdown of Models (Validation)", 
+               legend.loc = "bottomleft", colorset = rainbow6equal)
+
+```
+
+## Test Set
+```{r echo=FALSE}
+GMVP_touch_3b <-
+  get_touch_individual(GMVP_returns, 
+                       start_candidates = start_candidates_test_m1,
+                       signal = NULL,
+                       holding_time = holding_time, 
+                       realized_vol = realized_vol,
+                       tc = tc)
+GMVP_touch_m1 <-
+  get_touch_individual(GMVP_returns, 
+                       start_candidates = start_candidates_test_m1,
+                       signal = GMVP_signal,
+                       holding_time = holding_time, 
+                       realized_vol = realized_vol,
+                       tc = tc)
+
+GMVP_touch_m2 <-
+  get_touch_individual(GMVP_returns, 
+                       start_candidates = start_candidates_test_m2,
+                       signal = GMVP_signal,
+                       tc = tc,
+                       holding_time = holding_time, 
+                       realized_vol = realized_vol)
+
+
+start_t1 <- match(index(test_data_secondary_model)[1], index(GMVP_returns))
+end_t1 <- match(tail(index(test_data_secondary_model), 1), index(GMVP_returns))
+
+baseCase <- zeroCase <- GMVP_returns[start_t1:end_t1]
+zeroCase[] <- 0
+ret2Graph_3b <- ret2Graph_m1 <- ret2Graph_m2 <- zeroCase
+
+p2_1 <- plot_portfolios(cumprod(1 + baseCase),
+                        title = "GMVP (Test)", show_legend = FALSE)
+
+ret2Graph_3b[index(GMVP_touch_3b$filtered_returns)] <- 
+  GMVP_touch_3b$filtered_returns
+
+p2_2 <- plot_portfolios(cumprod(1 + ret2Graph_3b), 
+                        title = "Triple Barrier (Test)", show_legend = FALSE)
+
+ret2Graph_m1[index(GMVP_touch_m1$filtered_returns)] <- 
+  GMVP_touch_m1$filtered_returns
+
+p2_3 <- plot_portfolios(cumprod(1 + ret2Graph_m1), 
+                        title = "Primary Model (Test)", show_legend = FALSE)
+
+ret2Graph_m2[index(GMVP_touch_m2$filtered_returns)] <- 
+  GMVP_touch_m2$filtered_returns
+
+p2_4 <- plot_portfolios(cumprod(1 + ret2Graph_m2), 
+                        title = "Meta Model (Test)", show_legend = FALSE)
+
+grid.arrange(p2_1, p2_2,
+             p2_3, p2_4,
+             nrow = 2, ncol = 2)
+
+ret_all_tst <- cbind(baseCase,
+                     ret2Graph_3b,
+                     ret2Graph_m1,
+                     ret2Graph_m2)
+colnames(ret_all_tst) <- c("GMVP", "Triple Barrier",
+                           "Primary Model", "Meta Model")
+
+chart.Drawdown(ret_all_tst, main = "Drawdown of Models (out-of-sample)", 
+               legend.loc = "bottomleft", colorset = rainbow6equal)
+
+```

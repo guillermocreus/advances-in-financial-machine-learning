@@ -1,0 +1,16 @@
+\BOOKMARK [1][-]{section.1}{Stationary Time Series}{}% 1
+\BOOKMARK [1][-]{section.2}{Fractional differentiation}{}% 2
+\BOOKMARK [2][-]{subsection.2.1}{Inverse of differentiation}{section.2}% 3
+\BOOKMARK [1][-]{section.3}{Toy Project}{}% 4
+\BOOKMARK [2][-]{subsection.3.1}{Synthetic data}{section.3}% 5
+\BOOKMARK [2][-]{subsection.3.2}{Fractional differentiation of yt}{section.3}% 6
+\BOOKMARK [2][-]{subsection.3.3}{Models}{section.3}% 7
+\BOOKMARK [2][-]{subsection.3.4}{Sequential forecasts}{section.3}% 8
+\BOOKMARK [2][-]{subsection.3.5}{Results}{section.3}% 9
+\BOOKMARK [2][-]{subsection.3.6}{Conclusions}{section.3}% 10
+\BOOKMARK [1][-]{section.4}{Financial data}{}% 11
+\BOOKMARK [2][-]{subsection.4.1}{Division Train/Test data sets}{section.4}% 12
+\BOOKMARK [1][-]{section.5}{Models}{}% 13
+\BOOKMARK [1][-]{section.6}{Data normalization}{}% 14
+\BOOKMARK [1][-]{section.7}{Results}{}% 15
+\BOOKMARK [1][-]{section.8}{Conclusions}{}% 16

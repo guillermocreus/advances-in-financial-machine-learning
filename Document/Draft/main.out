@@ -1,0 +1,67 @@
+\BOOKMARK [0][-]{chapter.1}{Introduction}{}% 1
+\BOOKMARK [1][-]{section.1.1}{Document overview}{chapter.1}% 2
+\BOOKMARK [0][-]{chapter.2}{Primer in financial data}{}% 3
+\BOOKMARK [1][-]{section.2.1}{Asset returns}{chapter.2}% 4
+\BOOKMARK [1][-]{section.2.2}{Stylized facts}{chapter.2}% 5
+\BOOKMARK [1][-]{section.2.3}{Statistical properties}{chapter.2}% 6
+\BOOKMARK [1][-]{section.2.4}{Portfolios}{chapter.2}% 7
+\BOOKMARK [1][-]{section.2.5}{Long and short positions}{chapter.2}% 8
+\BOOKMARK [1][-]{section.2.6}{Financial Metrics}{chapter.2}% 9
+\BOOKMARK [1][-]{section.2.7}{High Frequency Data}{chapter.2}% 10
+\BOOKMARK [0][-]{chapter.3}{Meta-labeling}{}% 11
+\BOOKMARK [1][-]{section.3.1}{Introduction}{chapter.3}% 12
+\BOOKMARK [1][-]{section.3.2}{Motivation}{chapter.3}% 13
+\BOOKMARK [1][-]{section.3.3}{What is meta-labeling?}{chapter.3}% 14
+\BOOKMARK [2][-]{subsection.3.3.1}{Binary classification}{section.3.3}% 15
+\BOOKMARK [1][-]{section.3.4}{Toy Project}{chapter.3}% 16
+\BOOKMARK [2][-]{subsection.3.4.1}{Data}{section.3.4}% 17
+\BOOKMARK [2][-]{subsection.3.4.2}{Models}{section.3.4}% 18
+\BOOKMARK [2][-]{subsection.3.4.3}{Results}{section.3.4}% 19
+\BOOKMARK [2][-]{subsection.3.4.4}{Conclusions}{section.3.4}% 20
+\BOOKMARK [1][-]{section.3.5}{Financial Data}{chapter.3}% 21
+\BOOKMARK [2][-]{subsection.3.5.1}{Removal of outliers}{section.3.5}% 22
+\BOOKMARK [2][-]{subsection.3.5.2}{Division of Data}{section.3.5}% 23
+\BOOKMARK [1][-]{section.3.6}{Labeling \(Triple barrier\)}{chapter.3}% 24
+\BOOKMARK [2][-]{subsection.3.6.1}{Adaptation when the side is known}{section.3.6}% 25
+\BOOKMARK [1][-]{section.3.7}{Primary Model}{chapter.3}% 26
+\BOOKMARK [2][-]{subsection.3.7.1}{MA based Primary Model}{section.3.7}% 27
+\BOOKMARK [2][-]{subsection.3.7.2}{ML based Primary Model}{section.3.7}% 28
+\BOOKMARK [1][-]{section.3.8}{Secondary Model}{chapter.3}% 29
+\BOOKMARK [2][-]{subsection.3.8.1}{MA based Secondary Model}{section.3.8}% 30
+\BOOKMARK [2][-]{subsection.3.8.2}{ML based Secondary Model}{section.3.8}% 31
+\BOOKMARK [1][-]{section.3.9}{Hyper-parameter tuning via cross-validation}{chapter.3}% 32
+\BOOKMARK [2][-]{subsection.3.9.1}{Cross-Validation MA based Models}{section.3.9}% 33
+\BOOKMARK [2][-]{subsection.3.9.2}{Cross-Validation ML based Models}{section.3.9}% 34
+\BOOKMARK [1][-]{section.3.10}{Results}{chapter.3}% 35
+\BOOKMARK [2][-]{subsection.3.10.1}{MA based Models}{section.3.10}% 36
+\BOOKMARK [2][-]{subsection.3.10.2}{ML based Models}{section.3.10}% 37
+\BOOKMARK [1][-]{section.3.11}{Coin flip correction}{chapter.3}% 38
+\BOOKMARK [2][-]{subsection.3.11.1}{Results}{section.3.11}% 39
+\BOOKMARK [1][-]{section.3.12}{Conclusions}{chapter.3}% 40
+\BOOKMARK [0][-]{chapter.4}{Fractional Differentiation}{}% 41
+\BOOKMARK [1][-]{section.4.1}{Stationary Time Series}{chapter.4}% 42
+\BOOKMARK [2][-]{subsection.4.1.1}{Augmented Dickey-Fuller test}{section.4.1}% 43
+\BOOKMARK [1][-]{section.4.2}{Fractional differentiation}{chapter.4}% 44
+\BOOKMARK [2][-]{subsection.4.2.1}{Inverse of differentiation}{section.4.2}% 45
+\BOOKMARK [1][-]{section.4.3}{Toy Project}{chapter.4}% 46
+\BOOKMARK [2][-]{subsection.4.3.1}{Synthetic data}{section.4.3}% 47
+\BOOKMARK [2][-]{subsection.4.3.2}{Fractional differentiation of yt}{section.4.3}% 48
+\BOOKMARK [2][-]{subsection.4.3.3}{Models}{section.4.3}% 49
+\BOOKMARK [2][-]{subsection.4.3.4}{Sequential forecasts}{section.4.3}% 50
+\BOOKMARK [2][-]{subsection.4.3.5}{Results}{section.4.3}% 51
+\BOOKMARK [2][-]{subsection.4.3.6}{Conclusions}{section.4.3}% 52
+\BOOKMARK [1][-]{section.4.4}{Financial data}{chapter.4}% 53
+\BOOKMARK [2][-]{subsection.4.4.1}{Division Train/Test data sets}{section.4.4}% 54
+\BOOKMARK [1][-]{section.4.5}{Models}{chapter.4}% 55
+\BOOKMARK [1][-]{section.4.6}{Data normalization}{chapter.4}% 56
+\BOOKMARK [1][-]{section.4.7}{Results}{chapter.4}% 57
+\BOOKMARK [1][-]{section.4.8}{Conclusions}{chapter.4}% 58
+\BOOKMARK [0][-]{chapter.5}{Data parsing as bars}{}% 59
+\BOOKMARK [1][-]{section.5.1}{Data bars}{chapter.5}% 60
+\BOOKMARK [1][-]{section.5.2}{Data}{chapter.5}% 61
+\BOOKMARK [1][-]{section.5.3}{Sampling}{chapter.5}% 62
+\BOOKMARK [1][-]{section.5.4}{Normality of log-returns}{chapter.5}% 63
+\BOOKMARK [1][-]{section.5.5}{Statistical analysis of bars}{chapter.5}% 64
+\BOOKMARK [1][-]{section.5.6}{Results}{chapter.5}% 65
+\BOOKMARK [1][-]{section.5.7}{Conclusions}{chapter.5}% 66
+\BOOKMARK [0][-]{chapter.6}{Conclusions and future work}{}% 67

@@ -1,0 +1,510 @@
+---
+title: "Metalabeling"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      results = "",
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+# Loading libraries
+```{r echo=FALSE, results = "hide"}
+library(rvest)
+library(stringr)
+library(data.table)
+library(xts)
+library(PerformanceAnalytics)
+library(quantmod)
+library(portfolioBacktest)
+library(TTR)
+library(ggfortify)
+library(ggplot2)
+library(ggpubr)
+library(gridExtra)
+library(reshape2)
+library(randomForest)
+library(caret)
+library(combinat)  # Permutations
+
+set.seed(1998)
+library(keras)
+library(tensorflow)
+tensorflow::tf$random$set_seed(1998)
+
+library(CVXR)
+
+source("../Other/tables.R")
+source("../Other/cusum.R")
+source("../Other/labels.R")
+source("../Other/features.R")
+source("../Other/ROC.R")
+source("../Other/misc.R")
+source("../Other/plots.R")
+
+source("../GMVP/primary_model_GMVP.R")
+source("../GMVP/secondary_model_GMVP.R")
+source("../GMVP/primary_model_ROC.R")
+source("../GMVP/auxiliary_functions_GMVP.R")
+source("../GMVP/full_returns_GMVP.R")
+source("../GMVP/discrete_returns_GMVP.R")
+```
+
+```{r echo=FALSE}
+# HYPERPARAMETERS _________
+tc <- 5*0.01*1e-2  # 5 bps
+
+# delta(c(20, 5)) = 0.001; delta(c(,)) = ;
+
+# Best: c(window_length, holding_time, threshold) = c(100, 20, 3)
+window_length <- 20  # Std: 20 --> 5, 10, 20, 30, 40, 50, 70, 100
+holding_time <- 10  # Std: 10 --> 5, 10, 20, 30
+# _________________________
+
+load(file = "~/Dropbox/Otros/clean_returns_GMVP.RData") 
+GMVP_prices <- cumprod(1 + GMVP_returns)
+GMVP_MA <- SMA(GMVP_prices, n = 20)
+GMVP_signal <- lag(GMVP_prices >= GMVP_MA)
+GMVP_signal[GMVP_signal == 0] <- -1
+index(GMVP_signal) <- as.Date(index(GMVP_signal))
+```
+
+# Primary Model - (ML)
+
+## Features and labels
+```{r echo=FALSE}
+X_primary_model <- get_features_primary_model(GMVP_returns,
+                                              window_length = window_length,
+                                              threshold = 2.5/sqrt(window_length))
+
+call_labels <- get_labels_primary_model(GMVP_returns, 
+                                        X_primary_model,
+                                        window_length = window_length,
+                                        max_time = holding_time)
+ 
+y_primary_model <- call_labels$labels
+realized_returns_primary_model <- call_labels$realized_returns
+
+data_primary_model <- na.omit(cbind(X_primary_model, y_primary_model))
+
+N_split <- as.integer(0.8*nrow(data_primary_model))
+N_split_train <- as.integer(0.8*N_split)
+
+train_data_primary_model <- data_primary_model[1:N_split_train, ]
+validation_data_primary_model <- data_primary_model[(N_split_train + 1):N_split, ]
+test_data_primary_model <- data_primary_model[-(1:N_split), ]
+
+train_returns_primary_model <- realized_returns_primary_model[1:N_split_train]
+validation_returns_primary_model <-
+  realized_returns_primary_model[(N_split_train + 1):N_split]
+test_returns_primary_model <- 
+  realized_returns_primary_model[-(1:N_split)]
+```
+
+
+```{r}
+xM1Trn <- as.matrix(train_data_primary_model[, -ncol(train_data_primary_model)])
+yM1Trn <- as.vector(train_data_primary_model[, ncol(train_data_primary_model)])
+
+xM1Val <- as.matrix(
+  validation_data_primary_model[, -ncol(validation_data_primary_model)]
+)
+yM1Val <- as.vector(
+  validation_data_primary_model[, ncol(validation_data_primary_model)]
+)
+
+xM1Tst <- as.matrix(test_data_primary_model[, -ncol(test_data_primary_model)])
+yM1Tst <- as.vector(test_data_primary_model[, ncol(test_data_primary_model)])
+
+set.seed(1998)
+# Std: 10
+primaryModel <- keras_model_sequential() %>%
+  layer_flatten(input_shape = ncol(xM1Trn)) %>%
+  layer_dense(units = 20,
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104)) %>%
+  layer_activation_relu() %>%
+  layer_dense(units = 1, activation = "sigmoid",
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104))
+
+# Input format:
+# x <-> Matrix
+# y <-> vector
+
+primaryModel %>% compile(
+  optimizer = "adam",  # "adam", "rmsprop"
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <- primaryModel %>% fit(
+  x = xM1Trn, 
+  y = yM1Trn,
+  epochs = 100,
+  batch_size = 5000, # Std: 256
+  validation_data = list(xM1Val, yM1Val),
+  verbose = 3
+)
+
+predicted_train <- primaryModel %>% predict(xM1Trn)
+predicted_train <- as.xts(predicted_train,
+                          order.by = index(train_data_primary_model))
+
+predicted_validation <- primaryModel %>% predict(xM1Val)
+predicted_validation <- as.xts(predicted_validation,
+                               order.by = index(validation_data_primary_model))
+
+predicted_test <- primaryModel %>% predict(xM1Tst)
+predicted_test <- as.xts(predicted_test,
+                         order.by = index(test_data_primary_model))
+
+print(length(predicted_validation))
+sum(round(predicted_validation))
+```
+
+# Primary Model (RF)
+```{r}
+# set.seed(1998)
+# a0 <- which(yM1Trn == 0)
+# b0 <- sample(a0, 447)
+# x_b <- rbind(xM1Trn, xM1Trn[a0, ], xM1Trn[b0, ])
+# y_b <- c(yM1Trn, yM1Trn[a0], yM1Trn[b0])
+# primary_model_rf <- randomForest(x = x_b, y = as.factor(y_b), 
+#                                  method = "rf", importance = TRUE, 
+#                                  metric = "Accuracy", maximize = TRUE)
+# 
+# print(primary_model_rf)
+# importance(primary_model_rf)
+# 
+# predicted_train_rf <- predict(primary_model_rf, 
+#                               newdata = xM1Trn,
+#                               type = "prob")[, 2]
+# predicted_train_rf <- as.xts(predicted_train_rf,
+#                              order.by = index(train_data_primary_model))
+# 
+# predicted_validation_rf <- predict(primary_model_rf, 
+#                                    newdata = xM1Val,
+#                                    type = "prob")[, 2]
+# predicted_validation_rf <- as.xts(predicted_validation_rf,
+#                                   order.by = index(validation_data_primary_model))
+# 
+# predicted_test_rf <- predict(primary_model_rf, 
+#                              newdata = xM1Tst,
+#                              type = "prob")[, 2]
+# predicted_test_rf <- as.xts(predicted_test_rf,
+#                             order.by = index(test_data_primary_model))
+```
+
+# Secondary Model - (ML)
+
+## Features and labels
+```{r echo=FALSE}
+# Features
+
+# Predictions from primary model
+predictions_primary_model <- c(predicted_train,
+                               predicted_validation,
+                               predicted_test)
+
+labels_primary_model <- c(yM1Trn, yM1Val, yM1Tst)
+
+# Features from returns
+X_secondary_model <- get_features(GMVP_returns, 
+                                  signal = GMVP_signal,
+                                  MA = GMVP_MA)[[1]]
+
+X_secondary_model <- na.omit(cbind(predictions_primary_model, X_secondary_model))
+
+# Labels
+
+y_secondary_model <- round(predictions_primary_model) == labels_primary_model
+
+# Merging Features w/ Labels
+data_secondary_model <- na.omit(cbind(X_secondary_model, y_secondary_model))
+
+# Train, Validation and Test Data
+train_data_secondary_model <- 
+  data_secondary_model[index(train_data_primary_model)]
+
+validation_data_secondary_model <- 
+  data_secondary_model[index(validation_data_primary_model)]
+
+test_data_secondary_model <- 
+  data_secondary_model[index(test_data_primary_model)]
+```
+
+```{r}
+xM2Trn <- as.matrix(
+  train_data_secondary_model[, -ncol(train_data_secondary_model)]
+)
+yM2Trn <- as.vector(
+  train_data_secondary_model[, ncol(train_data_secondary_model)]
+)
+
+xM2Val <- as.matrix(
+  validation_data_secondary_model[, -ncol(validation_data_secondary_model)]
+)
+yM2Val <- as.vector(
+  validation_data_secondary_model[, ncol(validation_data_secondary_model)]
+)
+
+xM2Tst <- as.matrix(
+  test_data_secondary_model[, -ncol(test_data_secondary_model)]
+)
+yM2Tst <- as.vector(
+  test_data_secondary_model[, ncol(test_data_secondary_model)]
+)
+
+set.seed(1998)
+secondaryModel <- keras_model_sequential() %>%
+  layer_flatten(input_shape = ncol(xM2Trn)) %>%
+  layer_dense(units = 25,
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104)) %>%
+  layer_activation_leaky_relu() %>%
+  layer_dense(units = 1, activation = "sigmoid",
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104))
+
+# Input format:
+# x <-> Matrix
+# y <-> vector
+
+secondaryModel %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+history <- secondaryModel %>% fit(
+  x = xM2Trn, 
+  y = yM2Trn,
+  epochs = 150,
+  batch_size = 256,
+  validation_data = list(xM2Val, yM2Val),
+  verbose = 1
+)
+
+predicted_train_m2 <- secondaryModel %>% predict(xM2Trn)
+predicted_train_m2 <- as.xts(predicted_train_m2,
+                             order.by = index(train_data_secondary_model))
+
+predicted_validation_m2 <- secondaryModel %>% predict(xM2Val)
+predicted_validation_m2 <- as.xts(
+  predicted_validation_m2,
+  order.by = index(validation_data_secondary_model)
+)
+
+predicted_test_m2 <- secondaryModel %>% predict(xM2Tst)
+predicted_test_m2 <- as.xts(predicted_test_m2,
+                            order.by = index(test_data_secondary_model))
+
+predicted_train <- 2*round(predicted_train) - 1
+predicted_validation <- 2*round(predicted_validation) - 1
+predicted_test <- 2*round(predicted_test) - 1
+
+yM1Trn <- as.vector(train_data_primary_model[, ncol(train_data_primary_model)])
+yM1Val <- as.vector(
+  validation_data_primary_model[, ncol(validation_data_primary_model)]
+)
+yM1Tst <- as.vector(test_data_primary_model[, ncol(test_data_primary_model)])
+
+yM1Trn <- 2*yM1Trn - 1
+yM1Val <- 2*yM1Val - 1
+yM1Tst <- 2*yM1Tst - 1
+
+predicted_train_mm <- predicted_train * round(predicted_train_m2)
+predicted_validation_mm <- predicted_validation * round(predicted_validation_m2)
+predicted_test_mm <- predicted_test * round(predicted_test_m2)
+
+# _____ Primary Model _____
+TP <- sum(round(predicted_validation) == yM1Val)
+FP <- sum(round(predicted_validation) != yM1Val)
+FN <- 0
+TN <- 0
+
+precision <- TP/(TP + FP + FN + TN)  # ?, 0.5595
+recall <- TP/(TP + FN)
+f1Score <- 2/(1/recall + 1/precision)
+
+print(paste("Precision", precision))
+print(paste("Recall", recall))
+print(paste("F1-Score", f1Score))
+# _______________
+
+# _____ Meta Model _____
+TP <- sum(predicted_validation_mm == yM1Val)
+FP <- sum(predicted_validation_mm == 1 & yM1Val == -1 | 
+            predicted_validation_mm == -1 & yM1Val == 1)
+FN <- sum((predicted_validation_mm == 0 & 
+             predicted_validation == 1 & 
+             yM1Val == 1) | 
+            (predicted_validation_mm == 0 & 
+               predicted_validation == -1 & 
+               yM1Val == -1))
+TN <-  sum((predicted_validation_mm == 0 & 
+              predicted_validation == 1 & 
+              yM1Val == -1 ) |
+             (predicted_validation_mm == 0 & 
+                predicted_validation == -1 & 
+                yM1Val == 1))
+
+precision <- TP/(TP + FP)  # ?, 0.5595
+recall <- TP/(TP + FN)
+f1Score <- 2/(1/recall + 1/precision)
+
+print(paste("Precision", precision))
+print(paste("Recall", recall))
+print(paste("F1-Score", f1Score))
+# _______________
+
+# _____ Primary Model _____
+TP <- sum(round(predicted_test) == yM1Tst)
+FP <- sum(round(predicted_test) != yM1Tst)
+FN <- 0
+TN <- 0
+
+precision <- TP/(TP + FP + FN + TN)  # ?, 0.5595
+recall <- TP/(TP + FN)
+f1Score <- 2/(1/recall + 1/precision)
+
+print(paste("Precision", precision))
+print(paste("Recall", recall))
+print(paste("F1-Score", f1Score))
+# _______________
+
+# _____ Meta Model _____
+TP <- sum(predicted_test_mm == yM1Tst)
+FP <- sum(predicted_test_mm == 1 & yM1Tst == -1 | 
+          predicted_test_mm == -1 & yM1Tst == 1)
+FN <- sum((predicted_test_mm == 0 & 
+             predicted_test == 1 & 
+             yM1Tst == 1) | 
+          (predicted_test_mm == 0 & 
+             predicted_test == -1 & 
+             yM1Tst == -1))
+TN <-  sum((predicted_test_mm == 0 & 
+              predicted_test == 1 & 
+              yM1Tst == -1 ) |
+             (predicted_test_mm == 0 & 
+                predicted_test == -1 & 
+                yM1Tst == 1))
+
+precision <- TP/(TP + FP)  # ?, 0.5595
+recall <- TP/(TP + FN)
+f1Score <- 2/(1/recall + 1/precision)
+
+print(paste("Precision", precision))
+print(paste("Recall", recall))
+print(paste("F1-Score", f1Score))
+# _______________
+```
+
+## Plots Meta model
+## Validation Set
+```{r echo=FALSE}
+full_returns_m1 <- get_full_returns(returns = GMVP_returns, 
+                                    enter = predicted_validation > -Inf,
+                                    signal = predicted_validation,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+full_returns_mm <- get_full_returns(returns = GMVP_returns, 
+                                    enter = predicted_validation_mm != 0,
+                                    signal = predicted_validation_mm,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+start_t1 <- match(index(validation_data_secondary_model)[1], 
+                  index(GMVP_returns))
+end_t1 <- match(tail(index(validation_data_secondary_model), 1), 
+                index(GMVP_returns))
+
+baseCase <- zeroCase <- GMVP_returns[start_t1:end_t1]
+zeroCase[] <- 0
+ret2Graph_m1 <- ret2Graph_mm <- zeroCase
+
+ret2Graph_m1[index(full_returns_m1)] <- full_returns_m1
+
+ret2Graph_mm[index(full_returns_mm)] <- full_returns_mm
+
+prices_all_val <- cbind(cumprod(1 + baseCase),
+                        cumprod(1 + ret2Graph_m1),
+                        cumprod(1 + ret2Graph_mm))
+colnames(prices_all_val) <- c("B&H", "M1", "MM")
+
+plot_portfolios(prices_all_val,
+                title = "P&L of Models (Validation set)")
+
+ret_all_val <- cbind(baseCase,
+                     ret2Graph_m1,
+                     ret2Graph_mm)
+colnames(ret_all_val) <- c("GMVP", "Primary Model", "Meta Model")
+
+chart.Drawdown(ret_all_val, main = "Drawdown of Models (Validation set)", 
+               legend.loc = "bottomleft", colorset = rainbow6equal)
+
+print(SR_strategy(full_returns_m1))
+print(SR_strategy(full_returns_mm))
+print(SharpeRatio.annualized(baseCase))
+```
+
+
+## Test Set
+```{r echo=FALSE}
+full_returns_m1 <- get_full_returns(returns = GMVP_returns, 
+                                    enter = predicted_test > -Inf,
+                                    signal = predicted_test,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+full_returns_mm <- get_full_returns(returns = GMVP_returns, 
+                                    enter = predicted_test_mm != 0,
+                                    signal = predicted_test_mm,
+                                    window_length = window_length,
+                                    max_time = holding_time,
+                                    tc = tc)
+
+start_t1 <- match(index(test_data_secondary_model)[1], index(GMVP_returns))
+end_t1 <- match(tail(index(test_data_secondary_model), 1), index(GMVP_returns))
+
+baseCase <- zeroCase <- GMVP_returns[start_t1:end_t1]
+zeroCase[] <- 0
+ret2Graph_m1 <- ret2Graph_mm <- zeroCase
+
+ret2Graph_m1[index(full_returns_m1)] <- full_returns_m1
+
+ret2Graph_mm[index(full_returns_mm)] <- full_returns_mm
+
+prices_all_tst <- cbind(cumprod(1 + baseCase),
+                        cumprod(1 + ret2Graph_m1),
+                        cumprod(1 + ret2Graph_mm))
+colnames(prices_all_tst) <- c("B&H", "M1", "MM")
+
+plot_portfolios(prices_all_tst,
+                title = "P&L of Models (out-of-sample)")
+
+ret_all_tst <- cbind(baseCase,
+                     ret2Graph_m1,
+                     ret2Graph_mm)
+colnames(ret_all_tst) <- c("GMVP", "Primary Model", "Meta Model")
+
+chart.Drawdown(ret_all_tst, main = "Drawdown of Models (out-of-sample)", 
+               legend.loc = "bottomleft", colorset = rainbow6equal)
+
+print(SR_strategy(full_returns_m1))
+print(SR_strategy(full_returns_mm))
+print(SharpeRatio.annualized(baseCase))
+
+maxDrawdown(ret_all_tst)
+```

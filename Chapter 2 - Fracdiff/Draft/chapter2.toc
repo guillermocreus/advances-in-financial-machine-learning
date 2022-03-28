@@ -1,0 +1,17 @@
+\babel@toc {english}{}
+\contentsline {section}{\numberline {1}Stationary Time Series}{1}{section.1}% 
+\contentsline {section}{\numberline {2}Fractional differentiation}{2}{section.2}% 
+\contentsline {subsection}{\numberline {2.1}Inverse of differentiation}{4}{subsection.2.1}% 
+\contentsline {section}{\numberline {3}Toy Project}{5}{section.3}% 
+\contentsline {subsection}{\numberline {3.1}Synthetic data}{6}{subsection.3.1}% 
+\contentsline {subsection}{\numberline {3.2}Fractional differentiation of $y_t$}{6}{subsection.3.2}% 
+\contentsline {subsection}{\numberline {3.3}Models}{6}{subsection.3.3}% 
+\contentsline {subsection}{\numberline {3.4}Sequential forecasts}{8}{subsection.3.4}% 
+\contentsline {subsection}{\numberline {3.5}Results}{8}{subsection.3.5}% 
+\contentsline {subsection}{\numberline {3.6}Conclusions}{9}{subsection.3.6}% 
+\contentsline {section}{\numberline {4}Financial data}{9}{section.4}% 
+\contentsline {subsection}{\numberline {4.1}Division Train/Test data sets}{9}{subsection.4.1}% 
+\contentsline {section}{\numberline {5}Models}{10}{section.5}% 
+\contentsline {section}{\numberline {6}Data normalization}{10}{section.6}% 
+\contentsline {section}{\numberline {7}Results}{11}{section.7}% 
+\contentsline {section}{\numberline {8}Conclusions}{12}{section.8}% 

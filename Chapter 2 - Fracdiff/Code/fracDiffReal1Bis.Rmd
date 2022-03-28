@@ -1,0 +1,317 @@
+---
+title: "Fractional differentiation - Financial data (Experiment 1)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      results = "",
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r echo=FALSE, results="hide"}
+library(ggplot2)  # Fancy plots
+library(reshape2)  # Melting data frame
+library(xts)  # Time series
+library(tseries)  # Augmented Dickey Fuller (ADF) Test
+library(pracma)  # Dividing and multiplying polynomials
+library(dplyr)  # %>%
+library(randomForest)  # Train Random Forests
+library(quantmod)  # Download Symbols
+library(stats)  # Lag a Time Series
+
+# _____ NN _____
+library(keras)
+library(tensorflow)
+tensorflow::tf$random$set_seed(1998)
+# _______________
+
+load(file = "~/Dropbox/Otros/clean_returns_GMVP.RData") 
+GMVPPrices <- cumprod(1 + GMVP_returns)
+GMVPLogPrices <- log(GMVPPrices)
+
+source("plots.R")
+source("fracDiffUtils.R")
+```
+
+```{r echo=FALSE, results="hide"}
+# _____ Auxiliary functions _____
+
+normalizeData <- function(dd, mins = NULL, maxs = NULL) {
+  if (is.null(dim(dd))) {
+    if (is.null(mins[1]) | is.null(maxs[1])) {
+      return((dd - min(dd))/(max(dd) - min(dd)))
+    } 
+    return((dd - mins)/(maxs - mins))
+  }
+  
+  if (is.null(mins) | is.null(maxs)) {
+    mins <- apply(dd, 2, min)
+    maxs <- apply(dd, 2, max)
+  } 
+  
+  for (k in 1:ncol(dd)) {
+    dd[, k] <- (dd[, k] - mins[k])/(maxs[k] - mins[k])
+  }
+  return(dd)
+}
+
+unNormalizeData <- function(dd, mins, maxs) {
+  if (is.null(dim(dd))) {
+    return(dd*(maxs - mins) + mins)
+  }
+  
+  for (k in 1:ncol(dd)) {
+    dd[, k] <- dd[, k]*(maxs[k] - mins[k]) + mins[k]
+  }
+  return(dd)
+}
+```
+
+```{r echo=FALSE, results="hide"}
+# _____ NN experiment _____
+
+# _____ Data _____
+
+getSymbols("^GSPC", from = as.Date("2005-01-01"), to = as.Date("2020-09-01"))
+dd <- log(GSPC[, c("GSPC.Open", "GSPC.Close", "GSPC.High", "GSPC.Low")])
+colnames(dd) <- c("Open", "Close", "High", "Low")
+
+nTrn <- as.integer(0.8*nrow(dd))
+n <- nrow(dd)
+
+ddTrn <- dd[1:nTrn, ]
+ddTst <- dd[-c(1:nTrn), ]
+# _______________
+
+d <- 0.25
+th <- 1e-4
+
+dataD <- na.omit(apply(dd, 2, fracDiff_FFD, d = d, th = th))
+dataD <- as.xts(dataD, order.by = as.Date(rownames(dataD)))
+apply(dataD, 2, adf.test)
+
+dataDTrn <- dataD[index(ddTrn)]
+dataDTst <- dataD[index(ddTst), ]
+
+dataRet <- na.omit(apply(dd, 2, diff))
+dataRet <- as.xts(dataRet, order.by = as.Date(rownames(dataRet)))
+apply(dataRet, 2, adf.test)
+
+dataRetTrn <- dataRet[index(ddTrn)]
+dataRetTst <- dataRet[index(ddTst)]
+
+# _____ Normalize data _____
+
+minDTrn <- apply(dataDTrn, 2, min)
+maxDTrn <- apply(dataDTrn, 2, max)
+
+dataDTrn <- normalizeData(dataDTrn)
+dataDTst <- normalizeData(dataDTst, mins = minDTrn, maxs = maxDTrn)
+
+minRetTrn <- apply(dataRetTrn, 2, min)
+maxRetTrn <- apply(dataRetTrn, 2, max)
+
+dataRetTrn <- normalizeData(dataRetTrn)
+dataRetTst <- normalizeData(dataRetTst, mins = minRetTrn, maxs = maxRetTrn)
+
+# _______________
+
+# _____ Labels _____
+
+dataDTrn <- na.omit(cbind(dataDTrn, stats::lag(dataDTrn$Close, k = -1)))
+dataDTst <- na.omit(cbind(dataDTst, stats::lag(dataDTst$Close, k = -1)))
+colnames(dataDTrn)[ncol(dataDTrn)] <- colnames(dataDTst)[ncol(dataDTst)] <- "Label"
+
+dataRetTrn <- na.omit(cbind(dataRetTrn, stats::lag(dataRetTrn$Close, k = -1)))
+dataRetTst <- na.omit(cbind(dataRetTst, stats::lag(dataRetTst$Close, k = -1)))
+colnames(dataRetTrn)[ncol(dataRetTrn)] <- "Label"
+colnames(dataRetTst)[ncol(dataRetTst)] <- "Label"
+```
+
+```{r, echo=FALSE, results="hide"}
+# _____ Frac Diff Model _____
+
+set.seed(1998)
+model <- keras_model_sequential() %>%
+  layer_flatten(input_shape = ncol(dataDTrn) - 1) %>%
+  layer_dense(units = 4, activation = "elu",
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104)) %>%
+  layer_dense(units = 1, activation = "elu", 
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104))
+
+model %>% compile(
+  optimizer = keras::optimizer_sgd(0.01, momentum = 0.9),
+  loss = "mse"
+)
+
+history <- model %>% fit(
+  x = dataDTrn[, -ncol(dataDTrn)], 
+  y = dataDTrn$Label,
+  epochs = 5000,
+  batch_size = 256,
+  validation_split = 0.15,
+  verbose = 0
+)
+
+# _______________
+
+# _____ Returns Model _____
+
+set.seed(1998)
+modelRet <- keras_model_sequential() %>%
+  layer_flatten(input_shape = ncol(dataRetTrn) - 1) %>%
+  layer_dense(units = 4, activation = "elu",
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104)) %>%
+  layer_dense(units = 1, activation = "elu", 
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104))
+
+modelRet %>% compile(
+  optimizer = keras::optimizer_sgd(0.01, momentum = 0.9),
+  loss = "mse"
+)
+
+historyRet <- modelRet %>% fit(
+  x = dataRetTrn[, -ncol(dataRetTrn)], 
+  y = dataRetTrn$Label,
+  epochs = 5000,
+  batch_size = 256,
+  validation_split = 0.15,
+  verbose = 0
+)
+
+modelRet2 <- keras_model_sequential() %>%
+  layer_flatten(input_shape = ncol(dataRetTrn) - 1) %>%
+  layer_dense(units = 4, activation = "sigmoid",
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104)) %>%
+  layer_dense(units = 1, activation = "sigmoid", 
+              kernel_initializer = initializer_random_uniform(minval = -0.05,
+                                                              maxval = 0.05,
+                                                              seed = 104))
+
+modelRet2 %>% compile(
+  optimizer = keras::optimizer_sgd(0.01, momentum = 0.9),
+  loss = "mse"
+)
+
+historyRet2 <- modelRet2 %>% fit(
+  x = dataRetTrn[, -ncol(dataRetTrn)], 
+  y = dataRetTrn$Label,
+  epochs = 5000,
+  batch_size = 256,
+  validation_split = 0.15,
+  verbose = 0
+)
+
+# _______________
+```
+
+# Predictions
+```{r}
+# _____ Predictions _____
+
+yHatDTst <- as.xts(model %>% predict(dataDTst[, -ncol(dataDTst)]),
+                   order.by = index(dataDTst))
+
+yHatRetTst <- as.xts(modelRet %>% predict(dataRetTst[, -ncol(dataRetTst)]),
+                     order.by = index(dataRetTst))
+
+yHatRet2Tst <- as.xts(modelRet2 %>% predict(dataRetTst[, -ncol(dataRetTst)]),
+                      order.by = index(dataRetTst))
+
+RMSED <- sqrt(sum((dataDTst$Label - yHatDTst)^2)/length(yHatDTst)) 
+RMSERet <- sqrt(sum((dataRetTst$Label - yHatRetTst)^2)/length(yHatRetTst))
+RMSERet2 <- sqrt(sum((dataRetTst$Label - yHatRet2Tst)^2)/length(yHatRet2Tst))
+
+print(c("RMSE FD" = RMSED, 
+        "RMSE Returns - V1" = RMSERet, 
+        "RMSE Returns - V2" = RMSERet2))
+
+
+yD <- dataDTst$Label
+allPredD <- cbind(yHatDTst, yD)
+colnames(allPredD) <- c("yHatDTst", "yD")
+
+plotTimeSeries(allPredD, "Out-of-sample Predictions of FD Models")
+
+yRet <- dataRetTst$Label
+allPredRet <- cbind(yHatRetTst, yHatRet2Tst, yRet)
+colnames(allPredRet) <- c("yHatRetTst", "yHatRet2Tst", "yRet")
+
+plotTimeSeries(allPredRet, title = "Out-of-sample Predictions of Returns Models")
+
+# _______________
+```
+
+```{r echo=FALSE, results="hide"}
+# _____ Recovering the original time series _____
+
+# _____ Frac Diff _____
+
+aux <- completeFracDiff_FFD(ddTrn$Close, ddTrn$Close, d, th)
+
+auxPred <- c(dataDTst$Close[1], na.omit(stats::lag(yHatDTst)))
+auxPred <- unNormalizeData(auxPred, mins = minDTrn["Close"], maxs = maxDTrn["Close"])
+
+yD <- c(aux, auxPred)
+wInv <- getInverseWeights_FFD(d, th, length(yD))
+yIntD <- inverseFracDiff_FFD(yD, d, th, w = wInv)[index(ddTst)]
+
+# _______________
+
+# _____ Returns _____
+
+aux <- completeFracDiff_FFD(ddTrn$Close, ddTrn$Close, 1, th)
+
+auxPred <- c(dataRetTst$Close[1], na.omit(stats::lag(yHatRetTst)))
+auxPred <- unNormalizeData(auxPred, mins = minRetTrn["Close"], maxs = maxRetTrn["Close"])
+
+yRet <- c(aux, auxPred)
+yIntRet <- cumsum(yRet)[index(ddTst)]
+
+aux <- completeFracDiff_FFD(ddTrn$Close, ddTrn$Close, 1, th)
+
+auxPred <- c(dataRetTst$Close[1], na.omit(stats::lag(yHatRet2Tst)))
+auxPred <- unNormalizeData(auxPred, mins = minRetTrn["Close"], maxs = maxRetTrn["Close"])
+
+yRet2 <- c(aux, auxPred)
+yIntRet2 <- cumsum(yRet2)[index(ddTst)]
+
+# _______________
+
+y <- log(GSPC$GSPC.Close)[index(yIntD)]
+
+# _______________
+```
+
+# Results
+```{r}
+
+# _____ Results _____
+
+allTimeSeries <- cbind(y, yIntD, yIntRet, yIntRet2)
+colnames(allTimeSeries) <- c("y", "yIntD", "yIntRet", "yIntRet2")
+
+plotTimeSeries(allTimeSeries, title = "Out-of-sample performance")
+
+realRMSED <- sqrt(sum((y- yIntD)^2)/length(yIntD)) 
+realRMSERet <- sqrt(sum((y - yIntRet)^2)/length(yIntRet))
+realRMSERet2 <- sqrt(sum((y - yIntRet2)^2)/length(yIntRet2))
+
+print(c("RMSE FD" = realRMSED, 
+        "RMSE Returns - V1" = realRMSERet,
+        "RMSE Returns - V2" = realRMSERet2))
+
+# _______________
+```
