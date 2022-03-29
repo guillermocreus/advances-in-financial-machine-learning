@@ -4,10 +4,10 @@ thesis "Exploring Machine Learning Advances in Finance", which was
 developed at the Hong Kong University of Science and Technology (HKUST)
 
 - Author: [Guillermo Creus][https://www.linkedin.com/in/guillermo-creus/]
-- Supervisor: Prof. [https://ece.hkust.edu.hk/palomar][Daniel P. Palomar] (Department of Electronic & Computer Engineering, HKUST)
+- Supervisor: Prof. [Daniel P. Palomar](https://ece.hkust.edu.hk/palomar) (Department of Electronic & Computer Engineering, HKUST)
 - Co-Supervisor: Prof. [https://www.eio.upc.edu/en/homepages/jcastro][Jordi Castro] (Dept. of Statistics and Operations Research, UPC)
-- Thesis: [TFG_Guillermo_Creus_Botella.pdf][Exploring Machine Learning Advances in Finance - Guillermo C.pdf]
-- Slides: [slidesTFG.pdf][Exploring Machine Learning Advances in Finance - Guillermo C.pdf]
+- Thesis: [Exploring Machine Learning Advances in Finance - Guillermo C.pdf](./TFG_Guillermo_Creus_Botella.pdf)
+- Slides: [Exploring Machine Learning Advances in Finance - Guillermo C.pdf](./slidesTFG.pdf)
 
 ## Abstract
 It is not a mystery that Machine Learning has revolutionized the way humans analyze data. However,
