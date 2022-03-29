@@ -1,12 +1,4 @@
-# -*- ispell-dictionary: "english" -*-
-
-
-#+AUTHOR: Guillermo Creus
-#+EMAIL: guillermocreus98@gmail.com
-#+STARTUP: showall
-
-
-* Exploring Machine Learning Advances in Finance
+# Exploring Machine Learning Advances in Finance
 This repository contains the source code, report and slides of my Bachelor's 
 thesis "Exploring Machine Learning Advances in Finance", which was 
 developed at the Hong Kong University of Science and Technology (HKUST)
@@ -17,7 +9,7 @@ developed at the Hong Kong University of Science and Technology (HKUST)
 - Thesis: [[TFG_Guillermo_Creus_Botella.pdf][Exploring Machine Learning Advances in Finance - Guillermo C.pdf]]
 - Slides: [[slidesTFG.pdf][Exploring Machine Learning Advances in Finance - Guillermo C.pdf]]
 
-** Abstract
+## Abstract
 It is not a mystery that Machine Learning has revolutionized the way humans analyze data. However,
 when treating data as complex as the one found in the stock market, clear advances are yet to be accomplished. This work will be focused on three novel areas of Machine Learning applied to finance: metalabeling, fractional differentiation and financial data parsing in the form of bars. Every aspect will be
 analyzed independently so as to determine its individual effectiveness.
@@ -27,7 +19,7 @@ Furthermore, as Machine Learning thrives in data, one should be very careful wit
 data, providing a controlled environment. When success is achieved under these conditions, the procedure will be put to use with real data, where these methods will be compared with standard techniques
 to ascertain if predictions deliver better forecasts or strategies with higher risk-adjusted returns.
 
-** Resumen
+## Resumen
 No es un misterio que el aprendizaje automático ha revolucionado la forma en que los humanos analizamos datos. Sin embargo, al tratar datos tan complejos como los que se encuentran en el mercado
 de valores, aún no se han logrado avances claros. Este trabajo estará centrado en tres áreas novedosas
 del aprendizaje automático aplicado a las finanzas: Meta-labeling, diferenciación fraccional y parsing
@@ -40,7 +32,7 @@ estas condiciones, se utilizará el procedimiento con datos reales, donde se com
 con técnicas estándar para determinar si las predicciones ofrecen mejores pronósticos o estrategias con
 mayores rendimientos ajustados al riesgo.
 
-** Resum
+## Resum
 No és un misteri que l’aprenentatge automàtic ha revolucionat la forma en que els humans analitzem
 dades. No obstant, a l’hora de tractar dades tan complexes com les trobades al mercat de valors, encara
 no s’han aconseguit avenços clars. Aquest treball estara centrat en tres àrees noves de l’aprenentatge
@@ -53,7 +45,7 @@ aquestes condicions, s’utilitzarà el procediment amb dades reals, on es compa
 amb tècniques estàndard per determinar si les prediccions donen millors pronòstics o estratègies amb
 majors rendiments ajustats al risc.
 
-** Acknowledgements
+## Acknowledgements
 First of all, I would like to thank Prof. Daniel P. Palomar for all of his help and guidance throughout
 the thesis. I sincerely hope this work will be the start of a fruitful relationship. Also, I am grateful for
 the work done by Jordi Castro, the link between Hong Kong and Barcelona.
