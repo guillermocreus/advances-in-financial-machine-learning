@@ -3,7 +3,7 @@ This repository contains the source code, report and slides of my Bachelor's
 thesis "Exploring Machine Learning Advances in Finance", which was 
 developed at the Hong Kong University of Science and Technology (HKUST)
 
-- Author: [https://www.linkedin.com/in/guillermo-creus/][Guillermo Creus]
+- Author: [Guillermo Creus][https://www.linkedin.com/in/guillermo-creus/]
 - Supervisor: Prof. [https://ece.hkust.edu.hk/palomar][Daniel P. Palomar] (Department of Electronic & Computer Engineering, HKUST)
 - Co-Supervisor: Prof. [https://www.eio.upc.edu/en/homepages/jcastro][Jordi Castro] (Dept. of Statistics and Operations Research, UPC)
 - Thesis: [TFG_Guillermo_Creus_Botella.pdf][Exploring Machine Learning Advances in Finance - Guillermo C.pdf]
