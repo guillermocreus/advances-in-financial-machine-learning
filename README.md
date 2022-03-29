@@ -1,7 +1,6 @@
 # Exploring Machine Learning Advances in Finance
 This repository contains the source code, report and slides of my Bachelor's 
-thesis "Exploring Machine Learning Advances in Finance", which was 
-developed at the Hong Kong University of Science and Technology (HKUST)
+thesis "Exploring Machine Learning Advances in Finance", developed at the Hong Kong University of Science and Technology (HKUST).
 
 - Author: [Guillermo Creus](https://www.linkedin.com/in/guillermo-creus/)
 - Supervisor: Prof. [Daniel P. Palomar](https://ece.hkust.edu.hk/palomar) (Department of Electronic & Computer Engineering, HKUST)
